@@ -18,15 +18,15 @@ source .venv/bin/activate
 pip install -e '.[test]'
 ```
 
-For CUDA runs, install the appropriate CUDA-enabled PyTorch wheel before the
-editable install. `nvidia-ml-py` is optional and is used only for GPU energy
-measurement.
-
 ## 1. Reproduce Tables I, II, and III
 
-The tracked controlled-system fixture is the input for this experiment.
+First prepare the tracked controlled-system fixture, then run the table
+reproduction command.
 
 ```bash
+horu-artifact prepare-data controlled-systems \
+  --data-root data
+
 horu-artifact reproduce-tables \
   --data-root data \
   --output results/table_reproduction \
@@ -38,62 +38,7 @@ horu-artifact reproduce-tables \
 The command writes `table1.csv`, `table2.csv`, `table3.csv`,
 `raw_timings.csv`, `environment.json`, and `result.json`.
 
-This surface uses the coefficient-cache HoRU implementation under
-`src/horu_artifact/horu/`. Each client caches projections onto the server
-common/global bases and its personal basis, then uses and communicates
-coefficients during recurring training.
-
-## 2. Run the six-dataset accuracy comparison
-
-Prepare the pinned dataset caches, run the shared six-dataset protocol, and
-write the summary plus validation report:
-
-```bash
-horu-artifact prepare-data all \
-  --config configs/datasets.yaml \
-  --data-root data
-
-horu-artifact run-suite \
-  --config configs/accuracy_full.yaml \
-  --data-root data \
-  --output results/accuracy_full
-
-horu-artifact validate-results \
-  --results results/accuracy_full
-```
-
-The active comparison code lives under
-`src/horu_artifact/experiments/accuracy_suite.py`,
-`accuracy_reporting.py`, and `accuracy_validation.py`.
-
-## 3. Verify the six-dataset reference result
-
-The committed reports are the immutable outputs of the verified seed-42 CUDA
-screening run:
-
-```bash
-python3 artifact/scripts/verify_reconstruction_suite.py \
-  --manifest artifact/manifests/reconstruction_cuda_suite_seed42_v1.json \
-  --suite-output reference_results/cuda_suite_seed42
-```
-
-Expected round-25 accuracies, in percent:
-
-| Dataset | HoRU | HyperFeel | FedHDC |
-|---|---:|---:|---:|
-| UCI-HAR | 97.66 | 98.08 | 95.25 |
-| ISOLET | 88.14 | 90.59 | 93.85 |
-| FEMNIST | 68.54 | 67.78 | 57.26 |
-| WISDM | 56.69 | 51.11 | 6.95 |
-| Synthetic | 78.00 | 73.19 | 71.09 |
-| NinaPro DB1 | 75.68 | 61.48 | 30.86 |
-| Unweighted mean | **77.45** | **73.71** | **59.21** |
-
-HoRU and HyperFeel use the unweighted mean of personalized client/subject
-accuracies. FedHDC uses the sample-weighted accuracy of one global prototype.
-Changing this contract changes the reported comparison.
-
-## Prepare public inputs
+## 2. Prepare Public Inputs
 
 The preparation manifests pin the public source revision and preprocessing
 choices. Use fresh, non-existing output directories.
@@ -122,17 +67,39 @@ python3 artifact/scripts/acquire_ninapro_db1_reconstruction.py \
   --download-dir /data/downloads/ninapro
 ```
 
-Some acquisition scripts accept an explicit archive or download directory;
-run each command with `--help` before a remote deployment. FEMNIST is large
-and its complete preparation needs substantial disk space.
+## 3. Run the six-dataset accuracy comparison
 
-## Provenance boundary
+After the public inputs exist, run the complete six-dataset pipeline in one
+command. The wrapper builds the pinned caches, runs the shared protocol, and
+writes the validation report.
 
-The benchmark implementation was vendored from
-`LONGNEW/-26CASES-HoRU` commit
-`c6a65d7e442705e5d7b7d2a33c7a68d129d32864`.
+```bash
+python3 artifact/scripts/run_cuda_reconstruction_suite.py \
+  --uci-har-source-root /data/horu/uci_har \
+  --isolet-raw-source-root /data/horu/isolet \
+  --femnist-source-root /data/horu/femnist \
+  --wisdm-source-root /data/horu/wisdm \
+  --synthetic-source-root /data/horu/synthetic \
+  --ninapro-db1-source-root /data/horu/ninapro \
+  --output-dir results_reconstruction/cuda_seed42
+```
 
-The committed six-dataset reports are labeled
-`CUDA_RECONSTRUCTION_SCREENING_ONLY`. They are source-traceable public-input
-reconstruction results, not proof that the manuscript's unavailable original
-multi-seed result files were reproduced.
+## 4. Verify the six-dataset reference result
+
+```bash
+python3 artifact/scripts/verify_reconstruction_suite.py \
+  --manifest artifact/manifests/reconstruction_cuda_suite_seed42_v1.json \
+  --suite-output reference_results/cuda_suite_seed42
+```
+
+Expected round-25 accuracies, in percent:
+
+| Dataset | HoRU | HyperFeel | FedHDC |
+|---|---:|---:|---:|
+| UCI-HAR | 97.66 | 98.08 | 95.25 |
+| ISOLET | 88.14 | 90.59 | 93.85 |
+| FEMNIST | 68.54 | 67.78 | 57.26 |
+| WISDM | 56.69 | 51.11 | 6.95 |
+| Synthetic | 78.00 | 73.19 | 71.09 |
+| NinaPro DB1 | 75.68 | 61.48 | 30.86 |
+| Unweighted mean | **77.45** | **73.71** | **59.21** |
