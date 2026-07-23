@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "name": "reconstruction_wisdm_raw_seed42_v1",
+  "result_status": "RECONSTRUCTION_SCREENING_ONLY",
+  "purpose": "Evaluate the repository's raw phone-accelerometer WISDM adapter under the manuscript's stated HD protocol, using the user-specified single seed 42.",
+  "data": {
+    "dataset": "wisdm",
+    "outer_archive_url": "https://archive.ics.uci.edu/static/public/507/wisdm%2Bsmartphone%2Band%2Bsmartwatch%2Bactivity%2Band%2Bbiometrics%2Bdataset.zip",
+    "outer_archive_member": "wisdm-dataset.zip",
+    "source_root_relative": "data/tiers/on_device_hdc/wisdm",
+    "modality": "phone_accel",
+    "clients": 51,
+    "split": "deterministic per-user 70/30 split",
+    "normalization": "standardize",
+    "max_train_per_client": 5000,
+    "max_test_per_client": 1000,
+    "representation": "raw three-axis sensor readings; no window transformation",
+    "provenance": "Official UCI 507 distribution plus REPO_EXISTING adapter behavior. The manuscript identifies the modality and split but does not specify a raw-versus-window transformation."
+  },
+  "protocol": {
+    "methods": ["horu_hd", "fedhdc", "hyperfeel"],
+    "round_checkpoints": [1, 25],
+    "rounds": 25,
+    "client_participation": 1.0,
+    "local_epochs": 3,
+    "batch_size": 32,
+    "hd_dim": 2000,
+    "hd_lr": 0.035,
+    "subspace_shared_rank": 32,
+    "subspace_intersection_rank": 24,
+    "subspace_personal_rank": 64,
+    "device": "cpu",
+    "deterministic_algorithms": true,
+    "torch_num_threads": 1,
+    "seed": 42
+  },
+  "parameter_provenance": {
+    "seed": "USER_SPECIFIED",
+    "dataset_modality_clients_split_normalization_caps": "PAPER_SPECIFIED: manuscript lines 636-646",
+    "rounds_client_participation_local_epochs_batch_size_hd_dim_hd_lr_ranks": "PAPER_SPECIFIED: manuscript lines 657-672",
+    "raw_row_representation": "REPO_EXISTING; UNSPECIFIED_BY_PAPER",
+    "device_and_determinism": "ASSUMED_FOR_PROTOTYPE"
+  },
+  "limitations": [
+    "This is a single-seed reconstruction screening run, not a paper reproduction or a paper-result estimate.",
+    "The manuscript does not specify the raw-versus-windowed WISDM representation; this profile uses the existing raw-row adapter.",
+    "The original data snapshot, seed protocol, aggregation rule, and source results are unavailable."
+  ]
+}

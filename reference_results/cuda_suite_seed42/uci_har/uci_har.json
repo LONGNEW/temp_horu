@@ -1,0 +1,436 @@
+{
+  "analysis": "checkpoint_comparison",
+  "device": "cuda",
+  "seeds": [
+    42
+  ],
+  "round_checkpoints": [
+    1,
+    25
+  ],
+  "run_config": {
+    "datasets": [
+      "uci_har"
+    ],
+    "methods": [
+      "horu_hd",
+      "fedhdc",
+      "hyperfeel"
+    ],
+    "summary_methods": [
+      "horu_hd",
+      "fedhdc",
+      "hyperfeel"
+    ],
+    "local_epochs": 3,
+    "batch_size": 32,
+    "client_participation": 1.0,
+    "deterministic_algorithms": true,
+    "torch_num_threads": 1,
+    "hd_dim": 2000,
+    "hd_lr": 0.035,
+    "hd_cosine_random_phase": false,
+    "nn_lr": 0.001,
+    "cnn_lr": 0.06,
+    "cnn_optimizer": "sgd",
+    "cnn_momentum": 0.0,
+    "cnn_weight_decay": 0.0,
+    "dfl_align_weight": 1.0,
+    "dfl_disentangle_weight": 0.1,
+    "fedprox_mu": 0.01,
+    "subspace_shared_rank": 32,
+    "subspace_personal_rank": 64,
+    "subspace_val_fraction": 0.0,
+    "subspace_fusion_alpha": null,
+    "subspace_rowgate_alpha": 1.0,
+    "subspace_rowgate_min": 0.1,
+    "subspace_rowgate_max": 0.9,
+    "subspace_explore_rounds": 3,
+    "subspace_refresh_interval": 0,
+    "subspace_intersection_rank": 24,
+    "subspace_intersection_ratio": null,
+    "subspace_initial_intersection_ratio": 0.25,
+    "subspace_basis_demotion_ratio": 0.5,
+    "enable_wasserstein_sync": false,
+    "wasserstein_atoms": 3,
+    "wasserstein_beta": 0.0,
+    "wasserstein_max_iters": 20,
+    "wasserstein_interval": 1,
+    "measure_energy": false,
+    "power_sample_interval_ms": 200.0,
+    "inference_only": false,
+    "inference_modes": [
+      "fused",
+      "shared",
+      "personal",
+      "routed"
+    ],
+    "save_round_states": false,
+    "checkpoint_state_dir": "results/hd_checkpoint_states",
+    "large_dataset_train_threshold": 100000,
+    "large_dataset_train_cap": 50000
+  },
+  "datasets": {
+    "uci_har": {
+      "num_classes": 6,
+      "chance_accuracy": 0.16666666666666666,
+      "rows": [
+        {
+          "dataset": "uci_har",
+          "seed": 42,
+          "method": "horu_hd",
+          "family": "hd",
+          "metric_key": "mean_personalized_accuracy",
+          "chance_accuracy": 0.16666666666666666,
+          "config": {
+            "dataset": {
+              "name": "uci_har",
+              "partition": "subject",
+              "test_size": 0.3,
+              "standardize": true,
+              "min_client_samples": 10,
+              "limit_clients": 30,
+              "tag": "uci_har_all30",
+              "root": "/home/longnew/data/datasets/horu-prototype/source/data/tiers/on_device_hdc/uci_har/UCI HAR Dataset",
+              "normalization": "l2",
+              "preserve_original_split": true
+            },
+            "model": {
+              "encoder": "cosine_projection",
+              "hd_dim": 2000,
+              "binary": false,
+              "cosine_random_phase": false,
+              "metric": "cos"
+            },
+            "method": {
+              "name": "horu",
+              "shared_rank": 32,
+              "personal_rank": 64,
+              "val_fraction": 0.0,
+              "alpha_grid": [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              "gate_alpha": 1.0,
+              "gate_min": 0.1,
+              "gate_max": 0.9,
+              "intersection_rank": 24,
+              "transport_mode": "fp32",
+              "coordinate_dropout": 0.0,
+              "upload_skip": 0.0,
+              "bit_flip_pct": 0.0,
+              "stale_upload_rounds": 0,
+              "enable_inround_checkpoints": false,
+              "enable_subspace_diagnostics": false,
+              "enable_system_profiling": false,
+              "trace_rounds": [],
+              "runtime_seed": 13,
+              "enable_wasserstein_sync": false,
+              "wasserstein_atoms": 3,
+              "wasserstein_beta": 0.0,
+              "wasserstein_max_iters": 20,
+              "wasserstein_interval": 1,
+              "interaction_dim": 0,
+              "interaction_seed": 13,
+              "interaction_weight": 0.15,
+              "interaction_update_mode": "joint_score",
+              "interaction_alpha_lr": 0.05,
+              "interaction_alpha_l2": 0.01,
+              "interaction_alpha_max": 4.0,
+              "interaction_tail_gamma": 0.1,
+              "interaction_tail_tau": 0.1
+            },
+            "train": {
+              "rounds": 25,
+              "local_epochs": 3,
+              "client_participation": 1.0,
+              "batch_size": 32,
+              "lr": 0.035
+            },
+            "runtime": {
+              "device": "cuda"
+            }
+          },
+          "checkpoint_metrics": {
+            "1": {
+              "mean_personalized_accuracy": 0.9712020973364512,
+              "mean_local_test_accuracy": 0.9712020973364512,
+              "mean_shared_branch_accuracy": 0.890305612484614,
+              "mean_personal_branch_accuracy": 0.2482761894663175,
+              "mean_alpha": 0.0,
+              "mean_common_delta_norm": 0.06073370443967482,
+              "mean_shared_sync_gate": 0.10116733461618424,
+              "mean_shared_delta_before": 0.0606869637966156,
+              "mean_shared_delta_after": 0.06047230598827203,
+              "global_only_basis_refresh_applied": 0.0,
+              "global_only_basis_refresh_mean_drift": 0.0,
+              "intersection_rank": 24.0,
+              "intersection_ratio": 0.75,
+              "global_only_rank": 8.0,
+              "wasserstein_sync_applied": 0.0,
+              "wasserstein_sync_eligible_rows": 0.0,
+              "wasserstein_sync_class_coverage": 0.0
+            },
+            "25": {
+              "mean_personalized_accuracy": 0.9766168713569641,
+              "mean_local_test_accuracy": 0.9766168713569641,
+              "mean_shared_branch_accuracy": 0.88382967710495,
+              "mean_personal_branch_accuracy": 0.2199994201461474,
+              "mean_alpha": 0.0,
+              "mean_common_delta_norm": 0.05968145110333959,
+              "mean_shared_sync_gate": 0.10000002384185791,
+              "mean_shared_delta_before": 0.05520620401948691,
+              "mean_shared_delta_after": 0.0550129825870196,
+              "global_only_basis_refresh_applied": 0.0,
+              "global_only_basis_refresh_mean_drift": 0.0,
+              "intersection_rank": 24.0,
+              "intersection_ratio": 0.75,
+              "global_only_rank": 8.0,
+              "wasserstein_sync_applied": 0.0,
+              "wasserstein_sync_eligible_rows": 0.0,
+              "wasserstein_sync_class_coverage": 0.0
+            }
+          },
+          "primary_value": 0.9766168713569641,
+          "runtime_seconds": 16.59312186799798,
+          "energy_metrics": {
+            "gpu_energy_j": null,
+            "gpu_avg_power_w": null,
+            "cpu_energy_j": null
+          }
+        },
+        {
+          "dataset": "uci_har",
+          "seed": 42,
+          "method": "fedhdc",
+          "family": "hd",
+          "metric_key": "global_test_accuracy",
+          "chance_accuracy": 0.16666666666666666,
+          "config": {
+            "dataset": {
+              "name": "uci_har",
+              "partition": "subject",
+              "test_size": 0.3,
+              "standardize": true,
+              "min_client_samples": 10,
+              "limit_clients": 30,
+              "tag": "uci_har_all30",
+              "root": "/home/longnew/data/datasets/horu-prototype/source/data/tiers/on_device_hdc/uci_har/UCI HAR Dataset",
+              "normalization": "l2",
+              "preserve_original_split": true
+            },
+            "model": {
+              "encoder": "cosine_projection",
+              "hd_dim": 2000,
+              "binary": false,
+              "cosine_random_phase": false,
+              "metric": "cos"
+            },
+            "method": {
+              "name": "fedhdc"
+            },
+            "train": {
+              "rounds": 25,
+              "local_epochs": 3,
+              "client_participation": 1.0,
+              "batch_size": 32,
+              "lr": 0.035
+            },
+            "runtime": {
+              "device": "cuda"
+            }
+          },
+          "checkpoint_metrics": {
+            "1": {
+              "global_test_accuracy": 0.8551099611901681,
+              "mean_global_accuracy": 0.8564942121505738,
+              "mean_local_test_accuracy": 0.9668393472830454,
+              "mean_local_train_accuracy": 0.9948314070701599
+            },
+            "25": {
+              "global_test_accuracy": 0.952457956015524,
+              "mean_global_accuracy": 0.9519437472025554,
+              "mean_local_test_accuracy": 0.9795982042948405,
+              "mean_local_train_accuracy": 0.9980363627274831
+            }
+          },
+          "primary_value": 0.952457956015524,
+          "runtime_seconds": 4.050114802004828,
+          "energy_metrics": {
+            "gpu_energy_j": null,
+            "gpu_avg_power_w": null,
+            "cpu_energy_j": null
+          }
+        },
+        {
+          "dataset": "uci_har",
+          "seed": 42,
+          "method": "hyperfeel",
+          "family": "hd",
+          "metric_key": "mean_personalized_accuracy",
+          "chance_accuracy": 0.16666666666666666,
+          "config": {
+            "dataset": {
+              "name": "uci_har",
+              "partition": "subject",
+              "test_size": 0.3,
+              "standardize": true,
+              "min_client_samples": 10,
+              "limit_clients": 30,
+              "tag": "uci_har_all30",
+              "root": "/home/longnew/data/datasets/horu-prototype/source/data/tiers/on_device_hdc/uci_har/UCI HAR Dataset",
+              "normalization": "l2",
+              "preserve_original_split": true
+            },
+            "model": {
+              "encoder": "cosine_projection",
+              "hd_dim": 2000,
+              "binary": false,
+              "cosine_random_phase": false,
+              "metric": "cos"
+            },
+            "method": {
+              "name": "hyperfeel"
+            },
+            "train": {
+              "rounds": 25,
+              "local_epochs": 3,
+              "client_participation": 1.0,
+              "batch_size": 32,
+              "lr": 0.035
+            },
+            "runtime": {
+              "device": "cuda"
+            }
+          },
+          "checkpoint_metrics": {
+            "1": {
+              "mean_personalized_accuracy": 0.9738809247811635,
+              "mean_local_test_accuracy": 0.9738809247811635,
+              "mean_local_train_accuracy": 0.9953842282295227
+            },
+            "25": {
+              "mean_personalized_accuracy": 0.980843432744344,
+              "mean_local_test_accuracy": 0.980843432744344,
+              "mean_local_train_accuracy": 1.0
+            }
+          },
+          "primary_value": 0.980843432744344,
+          "runtime_seconds": 3.1009006620006403,
+          "energy_metrics": {
+            "gpu_energy_j": null,
+            "gpu_avg_power_w": null,
+            "cpu_energy_j": null
+          }
+        }
+      ],
+      "sampling_records": [],
+      "summary": {
+        "horu_hd": {
+          "family": "hd",
+          "metric_key": "mean_personalized_accuracy",
+          "chance_accuracy": 0.16666666666666666,
+          "runtime_seconds_mean": 16.59312186799798,
+          "runtime_seconds_std": 0.0,
+          "gpu_energy_j_mean": null,
+          "gpu_energy_j_std": null,
+          "gpu_avg_power_w_mean": null,
+          "gpu_avg_power_w_std": null,
+          "cpu_energy_j_mean": null,
+          "cpu_energy_j_std": null,
+          "per_round": {
+            "1": {
+              "mean": 0.9712020973364512,
+              "std": 0.0,
+              "collapsed": false
+            },
+            "25": {
+              "mean": 0.9766168713569641,
+              "std": 0.0,
+              "collapsed": false
+            }
+          }
+        },
+        "fedhdc": {
+          "family": "hd",
+          "metric_key": "global_test_accuracy",
+          "chance_accuracy": 0.16666666666666666,
+          "runtime_seconds_mean": 4.050114802004828,
+          "runtime_seconds_std": 0.0,
+          "gpu_energy_j_mean": null,
+          "gpu_energy_j_std": null,
+          "gpu_avg_power_w_mean": null,
+          "gpu_avg_power_w_std": null,
+          "cpu_energy_j_mean": null,
+          "cpu_energy_j_std": null,
+          "per_round": {
+            "1": {
+              "mean": 0.8551099611901681,
+              "std": 0.0,
+              "collapsed": false
+            },
+            "25": {
+              "mean": 0.952457956015524,
+              "std": 0.0,
+              "collapsed": false
+            }
+          }
+        },
+        "hyperfeel": {
+          "family": "hd",
+          "metric_key": "mean_personalized_accuracy",
+          "chance_accuracy": 0.16666666666666666,
+          "runtime_seconds_mean": 3.1009006620006403,
+          "runtime_seconds_std": 0.0,
+          "gpu_energy_j_mean": null,
+          "gpu_energy_j_std": null,
+          "gpu_avg_power_w_mean": null,
+          "gpu_avg_power_w_std": null,
+          "cpu_energy_j_mean": null,
+          "cpu_energy_j_std": null,
+          "per_round": {
+            "1": {
+              "mean": 0.9738809247811635,
+              "std": 0.0,
+              "collapsed": false
+            },
+            "25": {
+              "mean": 0.980843432744344,
+              "std": 0.0,
+              "collapsed": false
+            }
+          }
+        }
+      },
+      "dataset_spec": {
+        "name": "uci_har",
+        "partition": "subject",
+        "test_size": 0.3,
+        "standardize": true,
+        "min_client_samples": 10,
+        "limit_clients": 30,
+        "tag": "uci_har_all30",
+        "root": "/home/longnew/data/datasets/horu-prototype/source/data/tiers/on_device_hdc/uci_har/UCI HAR Dataset",
+        "normalization": "l2",
+        "preserve_original_split": true
+      },
+      "effective_dataset_specs_by_seed": {
+        "42": {
+          "name": "uci_har",
+          "partition": "subject",
+          "test_size": 0.3,
+          "standardize": true,
+          "min_client_samples": 10,
+          "limit_clients": 30,
+          "tag": "uci_har_all30",
+          "root": "/home/longnew/data/datasets/horu-prototype/source/data/tiers/on_device_hdc/uci_har/UCI HAR Dataset",
+          "normalization": "l2",
+          "preserve_original_split": true
+        }
+      }
+    }
+  }
+}

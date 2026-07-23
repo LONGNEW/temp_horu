@@ -1,0 +1,57 @@
+{
+  "aggregate": "unweighted mean of one seed-42 round-25 primary metric per dataset",
+  "aggregate_provenance": "COMMON_PRACTICE_ASSUMPTION; not the manuscript's unreported multi-run reduction rule",
+  "datasets": [
+    "uci_har",
+    "isolet_raw",
+    "femnist",
+    "wisdm",
+    "synthetic",
+    "ninapro_db1"
+  ],
+  "methods": {
+    "fedhdc": {
+      "mean_accuracy_percent": 59.20833233640665,
+      "per_dataset_accuracy_percent": {
+        "femnist": 57.25704669751788,
+        "isolet_raw": 93.84878257155061,
+        "ninapro_db1": 30.859259259259257,
+        "synthetic": 71.08812949640287,
+        "uci_har": 95.2457956015524,
+        "wisdm": 6.950980392156862
+      }
+    },
+    "horu_hd": {
+      "mean_accuracy_percent": 77.45016984711891,
+      "per_dataset_accuracy_percent": {
+        "femnist": 68.53547602891922,
+        "isolet_raw": 88.13654333353043,
+        "ninapro_db1": 75.67777810273347,
+        "synthetic": 78.00129910310109,
+        "uci_har": 97.66168713569641,
+        "wisdm": 56.68823537873286
+      }
+    },
+    "hyperfeel": {
+      "mean_accuracy_percent": 73.70544700790941,
+      "per_dataset_accuracy_percent": {
+        "femnist": 67.78207975625992,
+        "isolet_raw": 90.58786928653717,
+        "ninapro_db1": 61.481480907510836,
+        "synthetic": 73.18906545639038,
+        "uci_har": 98.0843432744344,
+        "wisdm": 51.107843366323735
+      }
+    }
+  },
+  "report_sha256": {
+    "femnist": "b32bebf7273044ee276becb3610f28c8d6ffcad97aabff6dfd992baf75b3e5a4",
+    "isolet_raw": "5b38182a06e806e515830f6614468fe18a0278f726befb8a7ff32b518a4288cc",
+    "ninapro_db1": "fba5b0b821e0db69cff5487336099c4c5c4773a2d58864527092d44f433948ba",
+    "synthetic": "031e6582057c7f0e89c947278d492a80443416afeda38fd44e2e2510c0906e2e",
+    "uci_har": "b0db78acda3d10f2d9fa5767b3d530cf1f577b51c1508527f0d0cc44538ee21a",
+    "wisdm": "f20d882438478a1d2ae2bbde81255471aa35a562a71306bbb004127662207a10"
+  },
+  "result_status": "CUDA_RECONSTRUCTION_SCREENING_ONLY",
+  "suite_manifest_sha256": "430fb9397310718452c5417ab370af2b4b56699c4e7207190efd996b02d50a4b"
+}

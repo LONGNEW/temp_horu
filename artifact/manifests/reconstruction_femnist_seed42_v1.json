@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "name": "reconstruction_femnist_seed42_v1",
+  "result_status": "RECONSTRUCTION_INPUT_ONLY",
+  "purpose": "Create the public LEAF FEMNIST input used by the CUDA seed-42 reconstruction screen; never a paper-reproduction input claim.",
+  "source": {
+    "repository": "https://github.com/TalwalkarLab/leaf.git",
+    "revision": "09ec454a5675e32e1f0546b456b77857fdece018",
+    "raw_archives": [
+      "https://s3.amazonaws.com/nist-srd/SD19/by_class.zip",
+      "https://s3.amazonaws.com/nist-srd/SD19/by_write.zip"
+    ]
+  },
+  "preprocess": {
+    "sampling": "niid",
+    "sample_fraction": 1.0,
+    "minimum_samples_per_user": 0,
+    "partition": "sample",
+    "train_fraction": 0.9,
+    "sampling_seed": 42,
+    "split_seed": 42,
+    "selected_clients": "200 writers selected with seed 42 from the complete valid LEAF writer pool"
+  },
+  "parameter_provenance": {
+    "leaf_revision": "REPO_EXISTING: CUDA reconstruction screening evidence log",
+    "sampling_partition_and_seeds": "LEAF_OFFICIAL_DOCUMENTED plus USER_SPECIFIED seeds",
+    "train_fraction": "LEAF_LIBRARY_DEFAULT; not manuscript-specified",
+    "selected_clients": "USER_SPECIFIED seeded-random subject selection; not manuscript-specified",
+    "pillow_compatibility_patch": "SOURCE_TRACEABLE_COMPATIBILITY_FIX: replace deprecated Image.ANTIALIAS with its Pillow-10 equivalent Image.Resampling.LANCZOS",
+    "paper_match": "UNKNOWN_OR_UNVERIFIED"
+  },
+  "limitations": [
+    "The manuscript identifies FEMNIST but does not establish this LEAF revision, preprocessing, client selection, or train fraction as its paper input.",
+    "Output from this manifest is RECONSTRUCTION_INPUT_ONLY and may only support reconstruction-screening results."
+  ]
+}
