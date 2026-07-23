@@ -18,18 +18,40 @@ source .venv/bin/activate
 pip install -e '.[test]'
 ```
 
-## 1. Reproduce Tables I, II, and III
+## Docker
 
-First prepare the tracked controlled-system fixture, then run the table
-reproduction command.
+Build the reviewer image:
 
 ```bash
-horu-artifact prepare-data controlled-systems \
-  --data-root data
+docker build -t horu-ae:1.0 .
+```
 
-horu-artifact reproduce-tables \
+Run the CPU smoke test:
+
+```bash
+docker run --rm \
+  -v "$PWD/data:/artifact/data" \
+  -v "$PWD/results:/artifact/results" \
+  horu-ae:1.0 \
+  bash scripts/run_smoke.sh
+```
+
+The image also provides:
+
+```bash
+bash scripts/run_tables.sh
+bash scripts/run_benchmark.sh
+bash scripts/verify_reference.sh
+```
+
+## 1. Reproduce Tables I, II, and III
+
+Run the table wrapper:
+
+```bash
+python3 artifact/scripts/run_table_reproduction.py \
   --data-root data \
-  --output results/table_reproduction \
+  --output-dir results/table_reproduction \
   --warmup 5 \
   --repeats 30 \
   --threads 1
@@ -38,58 +60,45 @@ horu-artifact reproduce-tables \
 The command writes `table1.csv`, `table2.csv`, `table3.csv`,
 `raw_timings.csv`, `environment.json`, and `result.json`.
 
-## 2. Prepare Public Inputs
+## 2. Run the six-dataset accuracy comparison
 
-The preparation manifests pin the public source revision and preprocessing
-choices. Use fresh, non-existing output directories.
-
-```bash
-python3 artifact/scripts/acquire_uci_har_prototype.py \
-  --source-root /data/horu/uci_har \
-  --archive /data/downloads/UCI_HAR_Dataset.zip
-
-python3 artifact/scripts/acquire_isolet_prototype.py \
-  --source-root /data/horu/isolet \
-  --download-dir /data/downloads/isolet
-
-python3 artifact/scripts/prepare_femnist_reconstruction.py \
-  --source-root /data/horu/femnist
-
-python3 artifact/scripts/acquire_wisdm_reconstruction.py \
-  --source-root /data/horu/wisdm \
-  --outer-archive /data/downloads/WISDM.zip
-
-python3 artifact/scripts/prepare_synthetic_reconstruction.py \
-  --source-root /data/horu/synthetic
-
-python3 artifact/scripts/acquire_ninapro_db1_reconstruction.py \
-  --source-root /data/horu/ninapro \
-  --download-dir /data/downloads/ninapro
-```
-
-## 3. Run the six-dataset accuracy comparison
-
-After the public inputs exist, run the complete six-dataset pipeline in one
-command. The wrapper builds the pinned caches, runs the shared protocol, and
-writes the validation report.
+Run the preparation-and-execution wrapper. Use fresh, non-existing output
+directories.
 
 ```bash
-python3 artifact/scripts/run_cuda_reconstruction_suite.py \
+python3 artifact/scripts/prepare_and_run_cuda_reconstruction_suite.py \
   --uci-har-source-root /data/horu/uci_har \
+  --uci-har-archive /data/downloads/UCI_HAR_Dataset.zip \
   --isolet-raw-source-root /data/horu/isolet \
+  --isolet-download-dir /data/downloads/isolet \
   --femnist-source-root /data/horu/femnist \
   --wisdm-source-root /data/horu/wisdm \
+  --wisdm-outer-archive /data/downloads/WISDM.zip \
   --synthetic-source-root /data/horu/synthetic \
   --ninapro-db1-source-root /data/horu/ninapro \
-  --output-dir results_reconstruction/cuda_seed42
+  --ninapro-download-dir /data/downloads/ninapro \
+  --output-dir results_reconstruction/cuda_suite
 ```
 
-## 4. Verify the six-dataset reference result
+This wrapper acquires the public inputs, builds the pinned caches, runs the
+shared protocol, and writes the validation report.
+
+To run only a subset, repeat `--dataset`. Example:
+
+```bash
+python3 artifact/scripts/prepare_and_run_cuda_reconstruction_suite.py \
+  --dataset wisdm \
+  --wisdm-source-root /data/horu/wisdm \
+  --wisdm-outer-archive /data/downloads/WISDM.zip \
+  --output-dir results_reconstruction/cuda_suite_wisdm
+```
+
+## 3. Verify the six-dataset reference result
 
 ```bash
 python3 artifact/scripts/verify_reconstruction_suite.py \
-  --manifest artifact/manifests/reconstruction_cuda_suite_seed42_v1.json \
-  --suite-output reference_results/cuda_suite_seed42
+  --manifest artifact/manifests/reconstruction_cuda_suite_v1.json \
+  --suite-output reference_results/cuda_suite
 ```
 
 Expected round-25 accuracies, in percent:

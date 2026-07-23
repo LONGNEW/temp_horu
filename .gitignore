@@ -7,3 +7,4 @@ results/
 data/
 !data/.gitkeep
 .codex/
+artifact/scripts/run_vast_reconstruction_split_local.py
