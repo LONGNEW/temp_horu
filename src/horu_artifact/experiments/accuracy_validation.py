@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from .reporting import write_summary
+from .accuracy_reporting import write_summary
 
 
 def validate_results(results: str | Path, reference: str | Path | None = None) -> dict:

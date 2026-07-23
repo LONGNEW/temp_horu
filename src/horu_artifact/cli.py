@@ -15,13 +15,12 @@ from .datasets.wisdm import prepare_data as prepare_wisdm
 from .datasets.synthetic import prepare_data as prepare_synthetic
 from .datasets.controlled_systems import prepare_data as prepare_controlled_systems
 from .datasets.ninapro import prepare_data as prepare_ninapro
-from .datasets.github_canonical import prepare_github_canonical
 from .smoke import run_smoke
 from .federated.runner import run_federated
-from .experiments.reporting import write_summary
-from .experiments.validation import validate_results
-from .experiments.suite import run_suite
-from .experiments.table_reproduction import reproduce_tables
+from .experiments.accuracy_reporting import write_summary
+from .experiments.accuracy_validation import validate_results
+from .experiments.accuracy_suite import run_suite
+from .experiments.tables123 import reproduce_tables
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -29,7 +28,6 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="horu_artifact")
     commands = parser.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser("prepare-data"); prepare.add_argument("dataset", choices=["ucihar", "isolet", "femnist", "wisdm", "synthetic", "ninapro", "controlled-systems", "all"]); prepare.add_argument("--config"); prepare.add_argument("--data-root", required=True)
-    canonical = commands.add_parser("prepare-github-canonical-data"); canonical.add_argument("--config", required=True); canonical.add_argument("--data-root", required=True)
     smoke = commands.add_parser("smoke"); smoke.add_argument("--config", required=True); smoke.add_argument("--data-root", required=True); smoke.add_argument("--output", required=True); smoke.add_argument("--device", choices=["cpu", "cuda", "auto"]); smoke.add_argument("--overwrite", action="store_true")
     federated = commands.add_parser("federated"); federated.add_argument("--method", choices=["fedhdc", "hyperfeel", "horu"], required=True); federated.add_argument("--config", required=True); federated.add_argument("--data-root", required=True); federated.add_argument("--output", required=True); federated.add_argument("--device", choices=["cpu", "cuda", "auto"]); federated.add_argument("--overwrite", action="store_true"); federated.add_argument("--resume", action="store_true"); federated.add_argument("--bootstrap-only", action="store_true"); federated.add_argument("--bootstrap-checkpoint"); federated.add_argument("--seed", type=int)
     suite = commands.add_parser("run-suite"); suite.add_argument("--config", required=True); suite.add_argument("--data-root", required=True); suite.add_argument("--output", required=True)
@@ -63,8 +61,6 @@ def main(argv: list[str] | None = None) -> None:
                     continue
                 prepared[name] = data.statistics()
             print(json.dumps({"status": "prepared", "datasets": prepared}))
-        elif args.command == "prepare-github-canonical-data":
-            print(json.dumps({"status": "prepared", "datasets": prepare_github_canonical(args.config, args.data_root)}))
         elif args.command == "smoke":
             print(json.dumps(run_smoke(load_config(args.config), args.data_root, args.output, args.device, args.overwrite)))
         elif args.command == "run-suite":

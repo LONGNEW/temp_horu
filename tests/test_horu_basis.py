@@ -12,7 +12,7 @@ def test_prototype_basis_and_personal_projector():
     common, global_basis, info = shared_basis([prototype], 1, 1)
     basis = torch.cat([common, global_basis], 1)
     assert torch.allclose(basis.T @ basis, torch.eye(2), atol=1e-6)
-    assert info["projector_sha256"]
+    assert info["basis_solver"] == "svd_lowrank_right_vectors"
     residual = prototype - (prototype @ basis) @ basis.T
     personal, personal_info = personal_basis(residual, 1, "reduced_svd")
     assert torch.allclose(personal.T @ personal, torch.ones((1, 1)), atol=1e-6)

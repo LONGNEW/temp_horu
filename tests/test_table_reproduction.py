@@ -1,7 +1,7 @@
 import csv
 
 from horu_artifact.datasets.controlled_systems import ControlledSystemsConfig, prepare_data
-from horu_artifact.experiments.table_reproduction import reproduce_tables
+from horu_artifact.experiments.tables123 import reproduce_tables
 
 
 def test_reproduce_tables_writes_paper_shaped_outputs(tmp_path):
@@ -20,4 +20,3 @@ def test_reproduce_tables_writes_paper_shaped_outputs(tmp_path):
     assert float(table3[0]["uploaded_payload_kb"]) == 4 * 3 * 4 / 1000
     assert float(table3[1]["uploaded_payload_kb"]) == 4 * 12 * 4 / 1000
     assert float(table3[2]["uploaded_payload_kb"]) == 4 * 12 * 4 / 1000
-

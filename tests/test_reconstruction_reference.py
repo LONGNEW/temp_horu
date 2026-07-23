@@ -51,11 +51,12 @@ def test_reference_means_match_the_verified_cuda_screen() -> None:
 
 
 def test_canonical_horu_and_metric_contract_are_importable() -> None:
-    from our_hd.methods import FedHDCMethod, HoRUMethod, HyperFeelMethod
+    from horu_artifact.horu.bootstrap import bootstrap_horu
+    from horu_artifact.methods import fedhdc, hyperfeel
 
-    assert HoRUMethod.__name__ == "HoRUMethod"
-    assert HyperFeelMethod.__name__ == "HyperFeelMethod"
-    assert FedHDCMethod.__name__ == "FedHDCMethod"
+    assert callable(bootstrap_horu)
+    assert callable(fedhdc.bundled_model)
+    assert callable(hyperfeel.bundled_model)
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     assert manifest["protocol"]["metric_contract"] == {

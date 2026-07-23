@@ -17,9 +17,12 @@ and the methods:
 - `hyperfeel`
 - `fedhdc`
 
-The canonical HoRU entry point is `our_hd/methods/horu.py`. Its implementation
-inherits the fixed common-basis, common-delta-zero bootstrap path under
-`our_hd/methods/trial/`.
+The active repository entry points are:
+
+- `src/horu_artifact/experiments/accuracy_suite.py`
+- `src/horu_artifact/methods/fedhdc.py`
+- `src/horu_artifact/methods/hyperfeel.py`
+- `src/horu_artifact/horu/`
 
 ## Input forms
 

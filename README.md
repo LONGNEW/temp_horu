@@ -43,7 +43,30 @@ This surface uses the coefficient-cache HoRU implementation under
 common/global bases and its personal basis, then uses and communicates
 coefficients during recurring training.
 
-## 2. Verify the six-dataset reference result
+## 2. Run the six-dataset accuracy comparison
+
+Prepare the pinned dataset caches, run the shared six-dataset protocol, and
+write the summary plus validation report:
+
+```bash
+horu-artifact prepare-data all \
+  --config configs/datasets.yaml \
+  --data-root data
+
+horu-artifact run-suite \
+  --config configs/accuracy_full.yaml \
+  --data-root data \
+  --output results/accuracy_full
+
+horu-artifact validate-results \
+  --results results/accuracy_full
+```
+
+The active comparison code lives under
+`src/horu_artifact/experiments/accuracy_suite.py`,
+`accuracy_reporting.py`, and `accuracy_validation.py`.
+
+## 3. Verify the six-dataset reference result
 
 The committed reports are the immutable outputs of the verified seed-42 CUDA
 screening run:
@@ -102,23 +125,6 @@ python3 artifact/scripts/acquire_ninapro_db1_reconstruction.py \
 Some acquisition scripts accept an explicit archive or download directory;
 run each command with `--help` before a remote deployment. FEMNIST is large
 and its complete preparation needs substantial disk space.
-
-## Run the six-dataset CUDA suite
-
-```bash
-python3 artifact/scripts/run_cuda_reconstruction_suite.py \
-  --uci-har-source-root /data/horu/uci_har \
-  --isolet-raw-source-root /data/horu/isolet \
-  --femnist-source-root /data/horu/femnist \
-  --wisdm-source-root /data/horu/wisdm \
-  --synthetic-source-root /data/horu/synthetic \
-  --ninapro-db1-source-root /data/horu/ninapro \
-  --output-dir results_reconstruction/cuda_seed42
-```
-
-The suite fixes seed 42, 25 rounds, full participation, 3 local epochs,
-batch size 32, HD dimension 2000, learning rate 0.035, common rank 24,
-global-only rank 8, and personal rank 64.
 
 ## Provenance boundary
 

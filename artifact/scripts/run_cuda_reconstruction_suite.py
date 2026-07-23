@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Run the manifest-bound six-dataset CUDA reconstruction screening suite."""
+"""Run the current six-dataset accuracy suite through ``horu_artifact``.
+
+This wrapper keeps the old script location but routes execution through the
+active cache builders and accuracy-suite runner under ``src/horu_artifact``.
+It is a convenience entry point, not the immutable seed-42 reference-suite
+generator used to create ``reference_results/cuda_suite_seed42``.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,25 +18,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "artifact" / "manifests" / "reconstruction_cuda_suite_seed42_v1.json"
-SUMMARY = REPO_ROOT / "artifact" / "scripts" / "summarize_reconstruction_suite.py"
 
 
-def command_for(dataset: str, source_root: Path, output: Path, protocol: dict[str, object]) -> list[str]:
-    return [
-        sys.executable, "run_hd_checkpoint_comparison.py",
-        "--datasets", dataset, "--methods", *protocol["methods"],
-        "--device", str(protocol["device"]), "--deterministic-algorithms",
-        "--torch-num-threads", str(protocol["torch_num_threads"]),
-        "--seeds", str(protocol["seed"]),
-        "--round-checkpoints", *(str(value) for value in protocol["round_checkpoints"]),
-        "--local-epochs", str(protocol["local_epochs"]), "--batch-size", str(protocol["batch_size"]),
-        "--client-participation", str(protocol["client_participation"]),
-        "--hd-dim", str(protocol["hd_dim"]), "--hd-lr", str(protocol["hd_lr"]),
-        "--subspace-shared-rank", str(protocol["subspace_shared_rank"]),
-        "--subspace-intersection-rank", str(protocol["subspace_intersection_rank"]),
-        "--subspace-personal-rank", str(protocol["subspace_personal_rank"]),
-        "--json-out", str(output / f"{dataset}.json"), "--md-out", str(output / f"{dataset}.md"),
-    ]
+def _run(command: list[str], env: dict[str, str]) -> int:
+    print("Command:\n" + " ".join(command))
+    return subprocess.run(command, cwd=REPO_ROOT, env=env, check=False).returncode
 
 
 def main() -> int:
@@ -46,30 +37,59 @@ def main() -> int:
         print(f"Refusing to overwrite existing suite output: {args.output_dir}", file=sys.stderr)
         return 2
     args.output_dir.mkdir(parents=True)
-    reports: list[str] = []
-    for dataset in protocol["datasets"]:
+    for dataset in ("isolet_raw", "femnist", "wisdm", "ninapro_db1"):
         source_root = getattr(args, f"{dataset}_source_root")
-        if not source_root.is_dir():
+        if not source_root.exists():
             print(f"Missing source root for {dataset}: {source_root}", file=sys.stderr)
             return 2
-        dataset_output = args.output_dir / dataset
-        dataset_output.mkdir()
-        command = command_for(dataset, source_root, dataset_output, protocol)
-        print("Run Manifest\nCommand:\n" + " ".join(command))
-        completed = subprocess.run(command, cwd=REPO_ROOT, env={**os.environ, "HORU_SOURCE_DATA_ROOT": str(source_root)}, check=False)
-        if completed.returncode != 0:
-            return completed.returncode
-        reports.extend(["--report", f"{dataset}={dataset_output / f'{dataset}.json'}"])
-    summary_command = [
-        sys.executable,
-        str(SUMMARY),
-        *reports,
-        "--manifest",
-        str(MANIFEST_PATH),
-        "--output",
-        str(args.output_dir / "summary.json"),
-    ]
-    return subprocess.run(summary_command, cwd=REPO_ROOT, check=False).returncode
+    data_root = args.output_dir / "data"
+    results_root = args.output_dir / "results"
+    datasets_config = args.output_dir / "datasets.generated.json"
+    suite_config = args.output_dir / "accuracy_suite.generated.json"
+    datasets_config.write_text(json.dumps({
+        "seed": int(protocol["seed"]),
+        "sources": {
+            "isolet": str(args.isolet_raw_source_root),
+            "femnist": str(args.femnist_source_root),
+            "wisdm": str(args.wisdm_source_root),
+            "ninapro": str(args.ninapro_db1_source_root),
+        },
+        "wisdm_client_ids": list(range(1600, 1651)),
+        "wisdm_recover_missing_from_raw": True,
+        "source_roots_record_only": {
+            "uci_har": str(args.uci_har_source_root),
+            "synthetic": str(args.synthetic_source_root),
+        },
+    }, indent=2) + "\n", encoding="utf-8")
+    suite_config.write_text(json.dumps({
+        "datasets": ["ucihar", "isolet", "femnist", "wisdm", "synthetic", "ninapro"],
+        "methods": ["fedhdc", "hyperfeel", "horu"],
+        "seeds": [int(protocol["seed"])],
+        "rounds": int(protocol["rounds"]),
+        "participation": float(protocol["client_participation"]),
+        "local_epochs": int(protocol["local_epochs"]),
+        "batch_size": int(protocol["batch_size"]),
+        "hd_dim": int(protocol["hd_dim"]),
+        "hd_learning_rate": float(protocol["hd_lr"]),
+        "device": str(protocol["device"]),
+        "horu": {
+            "common_rank": int(protocol["subspace_intersection_rank"]),
+            "global_rank": int(protocol["subspace_shared_rank"]) - int(protocol["subspace_intersection_rank"]),
+            "personal_rank": int(protocol["subspace_personal_rank"]),
+            "eta_shared": float(protocol["hd_lr"]),
+            "eta_personal": float(protocol["hd_lr"]),
+            "eta_global": float(protocol["hd_lr"]),
+        },
+    }, indent=2) + "\n", encoding="utf-8")
+    env = {"PYTHONPATH": str(REPO_ROOT / "src"), **dict(__import__("os").environ)}
+    prepare = [sys.executable, "-m", "horu_artifact", "prepare-data", "all", "--config", str(datasets_config), "--data-root", str(data_root)]
+    if _run(prepare, env) != 0:
+        return 2
+    run_suite = [sys.executable, "-m", "horu_artifact", "run-suite", "--config", str(suite_config), "--data-root", str(data_root), "--output", str(results_root)]
+    if _run(run_suite, env) != 0:
+        return 2
+    validate = [sys.executable, "-m", "horu_artifact", "validate-results", "--results", str(results_root)]
+    return _run(validate, env)
 
 
 if __name__ == "__main__":
