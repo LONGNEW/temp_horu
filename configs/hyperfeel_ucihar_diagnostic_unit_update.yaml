@@ -1,0 +1,18 @@
+# ASSUMED_FOR_PROTOTYPE: isolates raw-Q update magnitude; not paper-faithful.
+method: hyperfeel
+implementation_mode: diagnostic
+dataset: ucihar
+subject_ids: [1, 2, 3]
+test_ratio: 0.3
+rounds: 2
+participation: 1.0
+local_epochs: 1
+batch_size: 16
+hd_dim: 256
+learning_rate: 0.035
+similarity: dot
+normalize_update_hypervectors: true
+normalize_prototypes: false
+server_aggregation: sum
+seed: 0
+device: cpu

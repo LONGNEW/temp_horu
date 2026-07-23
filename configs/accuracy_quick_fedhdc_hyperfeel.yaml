@@ -1,0 +1,12 @@
+# USER_SPECIFIED values inherited verbatim from accuracy_quick.yaml.
+# HoRU is excluded pending explicit provenance for eta_shared/eta_personal/eta_global.
+datasets: [ucihar, isolet]
+methods: [fedhdc, hyperfeel]
+seeds: [0]
+rounds: 3
+participation: 1.0
+local_epochs: 3
+batch_size: 32
+hd_dim: 2000
+hd_learning_rate: 0.035
+horu: {common_rank: 24, global_rank: 8, personal_rank: 64}

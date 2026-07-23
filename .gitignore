@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+results_reconstruction/
+results/
+data/
+!data/.gitkeep
+.codex/

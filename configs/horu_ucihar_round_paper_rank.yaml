@@ -1,0 +1,20 @@
+# Paper-rank diagnostic only. `full_svd` remains a numerical completion for r_p > K.
+method: horu
+dataset: ucihar
+subject_ids: [1, 2, 3]
+hd_dim: 2000
+common_rank: 24
+global_rank: 8
+personal_rank: 64
+personal_basis_policy: full_svd
+seed: 0
+rounds: 25
+local_epochs: 3
+batch_size: 32
+eta_shared: 0.035
+eta_personal: 0.035
+eta_global: 0.035
+provenance: PAPER_SPECIFIED_RANKS_AND_ROUND_SCHEDULE__REPO_EXISTING_SPLIT__USER_SPECIFIED_NUMERICAL_COMPLETION
+run_profile: paper_rank_diagnostic
+device: cpu
+test_ratio: 0.3

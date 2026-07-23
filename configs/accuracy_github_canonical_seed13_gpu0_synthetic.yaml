@@ -1,0 +1,11 @@
+datasets: [synthetic]
+methods: [fedhdc, hyperfeel, horu]
+seeds: [13]
+rounds: 25
+participation: 1.0
+local_epochs: 3
+batch_size: 32
+hd_dim: 2000
+hd_learning_rate: 0.035
+device: cuda
+horu: {common_rank: 24, global_rank: 8, personal_rank: 64, eta_shared: 0.035, eta_personal: 0.035, eta_global: 0.035}

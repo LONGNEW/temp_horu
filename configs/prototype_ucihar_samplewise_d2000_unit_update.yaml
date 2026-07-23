@@ -1,0 +1,14 @@
+# USER_SPECIFIED diagnostic: keep eta, normalize only each update hypervector.
+dataset: ucihar
+subject_ids: [1, 2, 3]
+test_ratio: 0.3
+seed: 0
+hd_dim: 2000
+learning_rate: 0.035
+local_epochs: 1
+batch_size: 32
+device: cpu
+similarity: cosine
+update_mode: samplewise
+normalize_prototypes: true
+normalize_update_hypervectors: true

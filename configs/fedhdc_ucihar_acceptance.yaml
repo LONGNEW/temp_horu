@@ -1,0 +1,14 @@
+# USER_SPECIFIED T002 acceptance-scale configuration; not a paper-accuracy claim.
+dataset: ucihar
+subject_ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]
+test_ratio: 0.3
+seed: 0
+hd_dim: 2000
+learning_rate: 0.035
+local_epochs: 1
+batch_size: 16
+rounds: 5
+device: cpu
+method: fedhdc
+similarity: dot
+normalize_update_hypervectors: true

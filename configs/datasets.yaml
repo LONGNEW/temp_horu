@@ -1,0 +1,11 @@
+# T006 source locations are explicit, read-only inputs under the global data root.
+seed: 0
+sources:
+  isolet: /home/longnew/data/projects/horu/isolet-artifact-input-6bc15a4/data/raw/isolet
+  femnist: /home/longnew/data/datasets/horu-reconstruction-femnist-verified/source/leaf/data/femnist/data
+  wisdm: /home/longnew/data/datasets/horu-reconstruction-wisdm-verified/source/data/tiers/on_device_hdc/wisdm/wisdm-dataset.zip
+  ninapro: /home/longnew/data/datasets/horu-reconstruction-ninapro-verified/source/data/tiers/on_device_hdc/ninapro_db1
+# USER_SPECIFIED deviation: 1599 replaces the absent transformed 1614 client.
+# Original 1600--1650 range restored through 1614 raw-data recovery.
+wisdm_client_ids: [1600, 1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609, 1610, 1611, 1612, 1613, 1614, 1615, 1616, 1617, 1618, 1619, 1620, 1621, 1622, 1623, 1624, 1625, 1626, 1627, 1628, 1629, 1630, 1631, 1632, 1633, 1634, 1635, 1636, 1637, 1638, 1639, 1640, 1641, 1642, 1643, 1644, 1645, 1646, 1647, 1648, 1649, 1650]
+wisdm_recover_missing_from_raw: true

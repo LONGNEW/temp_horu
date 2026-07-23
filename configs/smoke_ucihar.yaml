@@ -1,0 +1,9 @@
+dataset: ucihar
+subject_ids: [1, 2, 3]
+test_ratio: 0.3
+seed: 0
+hd_dim: 256
+learning_rate: 0.035
+local_epochs: 1
+batch_size: 128
+device: cpu

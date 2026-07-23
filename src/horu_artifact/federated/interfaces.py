@@ -1,0 +1,13 @@
+"""Small method interface used by the federated runner."""
+from typing import Protocol
+import torch
+
+class FederatedMethod(Protocol):
+    def bundled_model(self, encoded: torch.Tensor, labels: torch.Tensor, num_classes: int) -> torch.Tensor: ...
+    def weighted_aggregate(self, models: list[torch.Tensor], sample_counts: list[int]) -> torch.Tensor: ...
+
+
+class DeltaFederatedMethod(Protocol):
+    """Hook shape for methods that retain client state and exchange deltas."""
+    def bundled_model(self, encoded: torch.Tensor, labels: torch.Tensor, num_classes: int) -> torch.Tensor: ...
+    def sum_deltas(self, deltas: list[torch.Tensor]) -> torch.Tensor: ...
