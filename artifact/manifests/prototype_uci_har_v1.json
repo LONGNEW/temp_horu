@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "name": "uci_har_prototype_v1",
+  "result_status": "PROTOTYPE_ONLY",
+  "purpose": "Exercise the HoRU HD pipeline on the official UCI-HAR distribution while preserving enough provenance to distinguish it from a paper reproduction.",
+  "data": {
+    "dataset": "uci_har",
+    "source_url": "https://archive.ics.uci.edu/static/public/240/human%2Bactivity%2Brecognition%2Busing%2Bsmartphones.zip",
+    "source_root_relative": "data/tiers/on_device_hdc/uci_har/UCI HAR Dataset",
+    "partition": "subject",
+    "split": "official train/test split where each subject occurs in both partitions",
+    "normalization": "l2",
+    "provenance": "Official UCI distribution; not the unarchived repository input snapshot."
+  },
+  "protocol": {
+    "methods": ["horu_hd"],
+    "round_checkpoints": [1, 25],
+    "rounds": 25,
+    "client_participation": 1.0,
+    "local_epochs": 3,
+    "batch_size": 32,
+    "hd_dim": 2000,
+    "hd_lr": 0.035,
+    "subspace_shared_rank": 32,
+    "subspace_intersection_rank": 24,
+    "subspace_personal_rank": 64,
+    "device": "cpu",
+    "deterministic_algorithms": true,
+    "torch_num_threads": 1,
+    "seed": 13
+  },
+  "parameter_provenance": {
+    "rounds_client_participation_local_epochs_batch_size_hd_dim_hd_lr_ranks": "PAPER_SPECIFIED: manuscript lines 632-677",
+    "seed": "REPO_EXISTING; UNSPECIFIED_BY_PAPER",
+    "device": "ASSUMED_FOR_PROTOTYPE: CPU is selected for portable artifact execution",
+    "deterministic_algorithms_and_torch_num_threads": "ASSUMED_FOR_PROTOTYPE: controls deterministic CPU execution; not evidence of the original paper runtime."
+  },
+  "limitations": [
+    "The original paper-run data snapshot and its hash are unavailable.",
+    "The manuscript does not provide the seed list, run count, or aggregation rule.",
+    "This manifest must never be described as a paper reproduction or used to regenerate the paper table."
+  ]
+}

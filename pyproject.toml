@@ -5,12 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "horu-artifact"
 version = "0.1.0"
-description = "HDC smoke artifact core"
+description = "HoRU table and six-dataset reproduction artifact"
 requires-python = ">=3.11"
 dependencies = ["torch>=2.2", "PyYAML>=6.0", "scipy>=1.11"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
+cuda-monitoring = ["nvidia-ml-py>=12"]
 
 [project.scripts]
 horu-artifact = "horu_artifact.cli:main"
@@ -20,3 +21,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "."]
