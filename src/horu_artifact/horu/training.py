@@ -12,7 +12,7 @@ def train_client(state: ClientBootstrapState, epochs: int, batch_size: int, eta_
     similarity_ms = update_ms = 0.0
     for epoch in range(epochs):
         generator = torch.Generator(device="cpu").manual_seed(seed + state.client_id * 1009 + round_id * 100_003 + epoch)
-        order = torch.randperm(labels.numel(), generator=generator, device=labels.device)
+        order = torch.randperm(labels.numel(), generator=generator).to(labels.device)
         for begin in range(0, order.numel(), batch_size):
             indices = order[begin:begin + batch_size]
             started = time.perf_counter_ns()
