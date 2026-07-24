@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MANIFEST_PATH = REPO_ROOT / "artifact" / "manifests" / "reconstruction_ninapro_db1_seed42_v1.json"
+MANIFEST_PATH = REPO_ROOT / "artifact" / "manifests" / "reconstruction_ninapro_db1_v1.json"
 
 
 def sha256(path: Path) -> str:

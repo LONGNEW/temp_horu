@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "reconstruction_synthetic_seed42_v1",
+  "name": "reconstruction_synthetic_v1",
   "result_status": "RECONSTRUCTION_INPUT_ONLY",
   "purpose": "Create the explicit public LEAF Synthetic input used by the CUDA seed-42 reconstruction screen; never a paper-reproduction input claim.",
   "source": {

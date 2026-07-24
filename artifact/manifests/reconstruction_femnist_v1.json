@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "reconstruction_femnist_seed42_v1",
+  "name": "reconstruction_femnist_v1",
   "result_status": "RECONSTRUCTION_INPUT_ONLY",
   "purpose": "Create the public LEAF FEMNIST input used by the CUDA seed-42 reconstruction screen; never a paper-reproduction input claim.",
   "source": {

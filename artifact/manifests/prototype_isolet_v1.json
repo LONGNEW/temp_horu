@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "isolet_seed42_prototype_v1",
+  "name": "isolet_prototype_v1",
   "result_status": "PROTOTYPE_ONLY",
   "purpose": "Exercise HoRU on the public ISOLET distribution using the repository's reproducible Dirichlet federation with a user-specified seed.",
   "data": {

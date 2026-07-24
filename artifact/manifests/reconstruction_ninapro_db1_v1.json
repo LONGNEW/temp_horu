@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "reconstruction_ninapro_db1_seed42_v1",
+  "name": "reconstruction_ninapro_db1_v1",
   "result_status": "RECONSTRUCTION_INPUT_ONLY",
   "purpose": "Acquire and verify the public NinaPro DB1 preprocessed subject archives used by the CUDA seed-42 reconstruction screen; never a paper-reproduction input claim.",
   "source": {

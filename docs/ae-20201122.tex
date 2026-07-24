@@ -14,9 +14,10 @@
 % CC BY 4.0 license
 %
 
-\documentclass{sigplanconf}
+\documentclass[11pt]{article}
 
 \usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
 
 \begin{document}
 
@@ -41,6 +42,15 @@ HyperFeel, and FedHDC. The table experiment generates its controlled fixture
 locally and produces the latency and payload tables. The benchmark experiment
 acquires public inputs, builds local caches, runs the shared protocol, and
 writes validation reports.
+
+\subsection{Badges sought}
+
+We submit this artifact for the following ACM badges:
+\begin{itemize}
+  \item Artifacts Available
+  \item Artifacts Evaluated -- Functional
+  \item Results Validated -- Reproduced
+\end{itemize}
 
 \subsection{Artifact check-list (meta-information)}
 
@@ -80,14 +90,17 @@ unify artifact meta information in Digital Libraries.}
 
 The repository root contains the artifact. The active code paths are:
 \begin{itemize}
-  \item \texttt{src/horu\_artifact/experiments/tables123.py} for Tables I--III;
-  \item \texttt{artifact/scripts/run\_cuda\_reconstruction\_suite.py} for the
-        six-dataset benchmark;
+  \item \texttt{artifact/scripts/run\_tables123.py} for Tables I--III;
+  \item \texttt{artifact/scripts/prepare\_and\_run\_cuda\_reconstruction\_sequential.py}
+        for the dataset-by-dataset six-benchmark workflow;
+  \item \texttt{artifact/scripts/prepare\_and\_run\_cuda\_reconstruction\_suite.py}
+        for the full six-dataset wrapper;
+  \item \texttt{artifact/scripts/run\_reconstruction\_6x3.py} and
+        \texttt{run\_hd\_checkpoint\_comparison.py} for the core HD benchmark entrypoints;
+  \item \texttt{our\_hd/} for the HoRU, HyperFeel, and FedHDC implementations;
   \item \texttt{reference\_results/cuda\_suite/} for immutable
         reference reports;
-  \item \texttt{configs/accuracy\_full.yaml},
-        \texttt{configs/accuracy\_quick.yaml}, and
-        \texttt{configs/datasets.yaml} for benchmark configuration.
+  \item \texttt{configs/dataset\_specs.json} for dataset contracts.
 \end{itemize}
 
 \subsubsection{Hardware dependencies}
@@ -129,6 +142,19 @@ pip install -e '.[test]'
 For CUDA benchmark runs, install the appropriate CUDA-enabled PyTorch wheel
 before the editable install.
 
+The artifact also ships a Docker build path for reviewers:
+
+\begin{verbatim}
+docker build -t horu-ae:1.0 .
+\end{verbatim}
+
+If the GitHub Container Registry publication workflow has already run for the
+submission tag, reviewers may pull the published image instead:
+
+\begin{verbatim}
+docker pull ghcr.io/longnew/horu-artifact:1.0
+\end{verbatim}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Experiment workflow}
 
@@ -136,57 +162,58 @@ before the editable install.
 Generate the controlled-system fixture, then run the table workflow:
 
 \begin{verbatim}
-horu-artifact prepare-data controlled-systems --data-root data
-horu-artifact reproduce-tables \
+python3 artifact/scripts/run_tables123.py \
   --data-root data \
-  --output results/table_reproduction \
+  --output-dir results/table_reproduction \
   --warmup 5 \
   --repeats 30 \
   --threads 1
 \end{verbatim}
 
-\paragraph{Six-dataset benchmark.}
-First acquire the public inputs:
+The same workflow can be executed in Docker:
 
 \begin{verbatim}
-python3 artifact/scripts/acquire_uci_har_prototype.py \
-  --source-root /data/horu/uci_har \
-  --archive /data/downloads/UCI_HAR_Dataset.zip
-
-python3 artifact/scripts/acquire_isolet_prototype.py \
-  --source-root /data/horu/isolet \
-  --download-dir /data/downloads/isolet
-
-python3 artifact/scripts/prepare_femnist_reconstruction.py \
-  --source-root /data/horu/femnist
-
-python3 artifact/scripts/acquire_wisdm_reconstruction.py \
-  --source-root /data/horu/wisdm \
-  --outer-archive /data/downloads/WISDM.zip
-
-python3 artifact/scripts/prepare_synthetic_reconstruction.py \
-  --source-root /data/horu/synthetic
-
-python3 artifact/scripts/acquire_ninapro_db1_reconstruction.py \
-  --source-root /data/horu/ninapro \
-  --download-dir /data/downloads/ninapro
+docker run --rm \
+  -v "$PWD/data:/artifact/data" \
+  -v "$PWD/results:/artifact/results" \
+  horu-ae:1.0 \
+  bash scripts/run_tables.sh
 \end{verbatim}
 
-Then run the benchmark:
+\paragraph{Six-dataset benchmark.}
+The recommended reviewer path is the sequential wrapper that acquires or
+generates each dataset and then runs HoRU, HyperFeel, and FedHDC one dataset
+at a time:
 
 \begin{verbatim}
-python3 artifact/scripts/run_cuda_reconstruction_suite.py \
+python3 artifact/scripts/prepare_and_run_cuda_reconstruction_sequential.py \
   --uci-har-source-root /data/horu/uci_har \
+  --uci-har-archive /data/downloads/UCI_HAR_Dataset.zip \
   --isolet-raw-source-root /data/horu/isolet \
+  --isolet-download-dir /data/downloads/isolet \
   --femnist-source-root /data/horu/femnist \
   --wisdm-source-root /data/horu/wisdm \
+  --wisdm-outer-archive /data/downloads/WISDM.zip \
   --synthetic-source-root /data/horu/synthetic \
   --ninapro-db1-source-root /data/horu/ninapro \
-  --output-dir results_reconstruction/cuda_suite
+  --ninapro-download-dir /data/downloads/ninapro \
+  --output-dir results_reconstruction/cuda_suite_sequential
 \end{verbatim}
 
-This command builds local caches, runs the shared protocol, and writes the
-validation report.
+This wrapper acquires the public inputs, builds pinned local caches, writes one
+subdirectory per dataset, and emits a top-level
+\texttt{sequential\_summary.json}. The all-at-once wrapper remains available as
+\texttt{artifact/scripts/prepare\_and\_run\_cuda\_reconstruction\_suite.py}.
+
+Inside Docker on a GPU-capable host, reviewers can run:
+
+\begin{verbatim}
+docker run --rm --gpus all \
+  -v "$PWD/data:/artifact/data" \
+  -v "$PWD/results:/artifact/results" \
+  horu-ae:1.0 \
+  bash scripts/run_benchmark_sequential.sh
+\end{verbatim}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Evaluation and expected results}
@@ -228,14 +255,15 @@ The expected round-25 accuracies in the committed reference reports are:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Experiment customization}
 
-The main benchmark configuration files are:
+The intended customization surface is narrow:
 \begin{itemize}
-  \item \texttt{configs/accuracy\_quick.yaml}
-  \item \texttt{configs/accuracy\_full.yaml}
-  \item \texttt{configs/datasets.yaml}
+  \item choose a different output directory;
+  \item run only a subset of datasets via repeated \texttt{--dataset} flags;
+  \item point dataset-root and download-root flags at existing local caches.
 \end{itemize}
-Reviewers can switch between quick and full benchmark settings, change output
-directories, or run only the table workflow if GPU resources are unavailable.
+Reviewers should not edit the committed manifest or metric contract when the
+goal is to validate the reference results. If GPU resources are unavailable,
+the table workflow remains fully reproducible on CPU.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % When adding this appendix to your paper, 

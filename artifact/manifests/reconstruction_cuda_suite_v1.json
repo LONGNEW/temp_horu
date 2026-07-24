@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "reconstruction_cuda_suite_seed42_v1",
+  "name": "reconstruction_cuda_suite_v1",
   "result_status": "CUDA_RECONSTRUCTION_SCREENING_ONLY",
   "purpose": "Run a complete public-data, seed-42 six-dataset HD reconstruction screen; never a paper-reproduction claim.",
   "protocol": {

@@ -1,5 +1,10 @@
 FROM pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
 
+LABEL org.opencontainers.image.title="HoRU Reproduction Artifact" \
+      org.opencontainers.image.description="Reviewer environment for Tables I-III and the six-dataset HoRU/HyperFeel/FedHDC benchmark." \
+      org.opencontainers.image.source="https://github.com/LONGNEW/horu-artifact" \
+      org.opencontainers.image.licenses="See repository terms"
+
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1

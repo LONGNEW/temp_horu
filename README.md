@@ -8,6 +8,14 @@ This repository contains exactly two reproducibility surfaces:
 The two surfaces intentionally share a repository but retain separate metric
 contracts. Generated datasets and experiment outputs are not committed.
 
+## Badge Targets
+
+This artifact is prepared for the following ACM artifact badges:
+
+- `Artifacts Available`
+- `Artifacts Evaluated – Functional`
+- `Results Validated – Reproduced`
+
 ## Installation
 
 Python 3.11+ is required.
@@ -24,6 +32,13 @@ Build the reviewer image:
 
 ```bash
 docker build -t horu-ae:1.0 .
+```
+
+If the GitHub Container Registry publication workflow has already run for the
+submission tag, reviewers can pull the published image instead:
+
+```bash
+docker pull ghcr.io/longnew/horu-artifact:1.0
 ```
 
 This image is aligned with the CUDA runtime used for the benchmark path:
@@ -156,7 +171,7 @@ python3 artifact/scripts/prepare_and_run_cuda_reconstruction_suite.py \
 
 ```bash
 python3 artifact/scripts/verify_reconstruction_suite.py \
-  --manifest artifact/manifests/reconstruction_cuda_suite_seed42_v1.json \
+  --manifest artifact/manifests/reconstruction_cuda_suite_v1.json \
   --suite-output reference_results/cuda_suite
 ```
 

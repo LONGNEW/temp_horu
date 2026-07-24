@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MANIFEST_PATH = REPO_ROOT / "artifact" / "manifests" / "reconstruction_cuda_suite_seed42_v1.json"
+MANIFEST_PATH = REPO_ROOT / "artifact" / "manifests" / "reconstruction_cuda_suite_v1.json"
 SUMMARY = REPO_ROOT / "artifact" / "scripts" / "summarize_reconstruction_suite.py"
 ALL_DATASETS = ("uci_har", "isolet_raw", "femnist", "wisdm", "synthetic", "ninapro_db1")
 DATASET_RELATIVE_ROOTS = {

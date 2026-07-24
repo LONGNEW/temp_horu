@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "name": "reconstruction_wisdm_raw_seed42_v1",
+  "name": "reconstruction_wisdm_raw_v1",
   "result_status": "RECONSTRUCTION_SCREENING_ONLY",
   "purpose": "Evaluate the repository's raw phone-accelerometer WISDM adapter under the manuscript's stated HD protocol, using the user-specified single seed 42.",
   "data": {
