@@ -34,8 +34,8 @@ Build the reviewer image:
 docker build -t horu-ae:1.0 .
 ```
 
-If the GitHub Container Registry publication workflow has already run for the
-submission tag, reviewers can pull the published image instead:
+If a published container image is later attached to the submission release,
+reviewers can pull it instead of rebuilding locally:
 
 ```bash
 docker pull ghcr.io/longnew/horu-artifact:1.0
@@ -170,9 +170,7 @@ python3 artifact/scripts/prepare_and_run_cuda_reconstruction_suite.py \
 ## 3. Verify the six-dataset reference result
 
 ```bash
-python3 artifact/scripts/verify_reconstruction_suite.py \
-  --manifest artifact/manifests/reconstruction_cuda_suite_v1.json \
-  --suite-output reference_results/cuda_suite
+bash scripts/verify_reference.sh
 ```
 
 Expected round-25 accuracies, in percent:

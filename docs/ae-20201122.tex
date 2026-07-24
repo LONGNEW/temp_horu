@@ -148,8 +148,8 @@ The artifact also ships a Docker build path for reviewers:
 docker build -t horu-ae:1.0 .
 \end{verbatim}
 
-If the GitHub Container Registry publication workflow has already run for the
-submission tag, reviewers may pull the published image instead:
+If a published container image is later attached to the submission release,
+reviewers may pull it instead of rebuilding locally:
 
 \begin{verbatim}
 docker pull ghcr.io/longnew/horu-artifact:1.0
@@ -236,9 +236,7 @@ The immutable reference report is under
 \texttt{reference\_results/cuda\_suite/}. It can be checked with:
 
 \begin{verbatim}
-python3 artifact/scripts/verify_reconstruction_suite.py \
-  --manifest artifact/manifests/reconstruction_cuda_suite_v1.json \
-  --suite-output reference_results/cuda_suite
+bash scripts/verify_reference.sh
 \end{verbatim}
 
 The expected round-25 accuracies in the committed reference reports are:
