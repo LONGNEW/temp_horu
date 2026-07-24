@@ -7,7 +7,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "artifact" / "manifests" / "reconstruction_cuda_suite_v1.json"
+MANIFEST = ROOT / "artifact" / "manifests" / "reconstruction_cuda_suite_seed42_v1.json"
 SUITE = ROOT / "reference_results" / "cuda_suite"
 
 

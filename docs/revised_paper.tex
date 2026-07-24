@@ -1,0 +1,1267 @@
+\documentclass[lettersize,journal]{IEEEtran}
+\usepackage[switch]{lineno}
+\linenumbers
+\usepackage{amsmath,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{array}
+\usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
+\usepackage{textcomp}
+\usepackage{stfloats}
+\usepackage{url}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{booktabs}
+
+% method section 
+\usepackage{bm}
+% \usepackage{algpseudocode}
+\newcommand{\rev}[1]{#1}
+
+\hyphenation{op-tical net-works semi-conduc-tor IEEE-Xplore}
+% \renewcommand\linenumberfont{\normalfont\tiny}
+% \setlength\linenumbersep{3pt}
+
+\input{cell-latex-config}
+
+\begin{document}
+
+\title{Personalized Federated Hyperdimensional Computing via Shared-Personal Prototype Memory Decomposition}
+
+\author{Anonymous Authors}
+
+% \IEEEpubid{0000--0000/00\$00.00~\copyright~2021 IEEE}
+% Remember, if you use this you must call \IEEEpubidadjcol in the second
+% column for its text to clear the IEEEpubid mark.
+
+\maketitle
+
+\begin{abstract}
+Federated learning on edge devices requires models that are both efficient and robust to heterogeneous client data.
+Hyperdimensional computing (HDC) is a promising paradigm due to its lightweight, prototype-based representation and low computation and communication cost.
+However, existing federated HDC methods rely on a \rev{single global prototype model}, which leads to poor alignment under client heterogeneity and limits personalization.
+The key challenge is that HDC encodes discriminative information in a fully distributed prototype memory, where \rev{shared and personal prototype information} are inherently entangled, making it unclear what should be federated.
+
+We propose \Design, a personalized federated HDC framework that \rev{makes prototype memory selectively federatable by assigning distinct federated and local roles to class-prototype coefficients}.
+\Design \rev{organizes these coefficients into shared and local states}, enabling selective synchronization across clients while preserving local structure.
+It further employs class-adaptive updates to modulate aggregation strength based on local error signals, improving robustness under heterogeneous conditions.
+By communicating only the \rev{shared state}, \Design maintains the efficiency advantages of HDC while enabling effective personalization.
+
+Across \rev{six} federated benchmarks, \Design improves mean accuracy by $+4.3$\% points over HyperFeel and $+21.2$\% points over FedHDC.
+It also achieves significant system-level gains, reducing client-round latency by $3.0\times$ and communication volume by $62.5\times$ compared to prior federated HDC approaches.
+\rev{When the one-time bootstrap is included, the 25-round runtime remains \(1.36\)--\(1.37\times\) faster than these HDC baselines.}
+\end{abstract}
+
+
+\begin{IEEEkeywords}
+Personalized Federated Learning, Hyperdimensional Computing, HoRU
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+The increasing use of edge devices in the Internet of Things, wearable systems, and cyber-physical environments has created demand for machine learning methods that can operate under tight resource constraints~\cite{SINGH202371}.
+Traditional deep neural networks, while effective in many settings, often require levels of computation, memory, and energy that are difficult to support on such devices.
+Hyperdimensional Computing (HDC)~\cite{10610176,10137134} has emerged as a practical alternative.
+HDC encodes data into high-dimensional vectors, referred to as \textit{hypervectors}, and performs learning using simple arithmetic operations that are largely element-wise and independent, resulting in inherently lightweight and highly parallel computation.
+These properties enable lightweight, fast, and robust learning, making HDC well suited for deployment in resource-constrained edge environments.
+
+While HDC provides an efficient way to train locally, an edge device usually observes only its own limited and biased data.
+In many real deployments, local samples are noisy, scarce, and strongly tied to one user, one context, or one sensing condition.
+Training only on-device therefore restricts generalization.
+At the same time, sending raw data to a central server increases communication cost and introduces latency while raising privacy and security concerns.
+
+Federated Learning (FL) addresses these challenges~\cite{kairouz2021advancesopenproblemsfederated,mcmahan2023communicationefficientlearningdeepnetworks} by allowing clients to collaborate through model exchange rather than centralized data collection.
+HDC also aligns with the requirements of edge-based FL, and recent work has begun to explore this combination.
+Early federated HDC studies~\cite{ergun2023federatedhyperdimensionalcomputing,zhao2022fedhd,hyunsei2025fed,flhdc2021hsieh} demonstrated several attractive properties such as fast local training, reduced communication overhead, and robustness to noise.
+However, these methods still largely adopt a \emph{single global model} view.
+Under heterogeneous client distributions, aggregating a single model across all clients can suppress client-specific attributes, resulting in a one-size-fits-all model that is not well aligned with any individual client.
+
+Fig.~\ref{fig:motivation} demonstrates this mismatch.
+On NinaPro DB1~\cite{Ninapro2015} and WISDM~\cite{wisdm_smartphone_and_smartwatch_activity_and_biometrics_dataset__507}, we compare the class hypervectors produced by existing federated HDC methods~\cite{ergun2023federatedhyperdimensionalcomputing, li2024hyperfeel} with the corresponding client data distributions.
+Under heterogeneous conditions, the globally aggregated prototypes fail to align with local sample structure.
+As a result, the class hypervectors do not accurately represent client-specific data patterns, leading to reduced class separability at the client level.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/Motivation_crop.pdf}
+    \caption{Motivation for personalized federated HDC. Under natural client heterogeneity, a single globally shared prototype arrangement learned by existing methods~\cite{ergun2023federatedhyperdimensionalcomputing,li2024hyperfeel} can become misaligned with local sample geometry.}
+    \label{fig:motivation}
+\end{figure}
+
+
+%would require maintaining two separate hypervector models, one for global and one for personal knowledge. This duplication not only doubles computation and memory usage but also undermines the efficiency that makes HDC attractive for federated learning.
+
+Consequently, the primary challenge in federated HDC extends beyond communication efficiency: it lies in determining \emph{what prototype information should \rev{be included in the shared state} and what should remain \rev{local}}.
+This challenge directly motivates the need for \emph{personalization}, i.e., enabling each client to maintain a model that is tailored to its local data while still benefiting from shared knowledge.
+
+
+However, unlike neural network-based federated learning, where model components can be modularly adapted to support personalized models, HDC fundamentally lacks explicit structural separation.
+Instead, it maintains a \emph{prototype memory} composed of per-class hypervectors, where information is encoded in a fully distributed manner across all dimensions.
+As a result, \rev{personal and shared information} are inherently entangled within the same representation, making it difficult to isolate which components can be safely aggregated.
+Therefore, achieving effective \emph{personalized} federated learning in HDC is not a straightforward extension, but is fundamentally coupled with the underlying representation design.
+
+To address this challenge, we propose \Design (\textbf{\underline{H}yperdimensional l\underline{o}w-\underline{R}ank \underline{U}pdate}), a personalized federated learning framework for HDC that \rev{assigns federated roles to prototype coefficients, determining what enters the shared state and what remains local}.
+Our key insight is that prototype hypervectors contain both \rev{shared regularities and personal variations}, which can be separated through a low-rank update structure \rev{with branch-specific roles}.
+
+Specifically, \Design represents the \rev{shared prototype information} as a low-rank \rev{shared state} that is synchronized across clients, while retaining a complementary \rev{local state} to capture \rev{personal structure}.
+During training, clients collaborate only through the \rev{shared-state low-rank updates}, significantly reducing communication overhead, while preserving local adaptability through the \rev{local state}.
+Furthermore, \Design employs class-adaptive updates, where the strength of synchronization is modulated based on local error signals for selective alignment across clients: classes with higher local errors are updated more aggressively across clients, while well-learned classes are updated more conservatively.
+
+By operating directly on prototype memory, \Design provides a mechanism for personalization in HDC without sacrificing its efficiency advantages.
+Rather than partitioning an external model into global and local modules, \rev{\Design uses the prototype coefficient representation as the object on which federated roles are assigned}.
+This design allows only the \rev{shared-state coefficients} to be communicated, significantly reducing communication cost.
+
+
+This work makes the following key contributions: 
+\begin{itemize}
+  \item \rev{We identify global prototype aggregation as a source of personalization loss in federated HDC under heterogeneous data.
+  To mitigate this, \Design decomposes class-prototype coefficients into shared and local states, preserving both globally useful and
+  client-specific prototype information.}
+
+\item We develop a low-rank \rev{coefficient} learning and communication scheme that represents class hypervectors through \rev{shared-state and local-state coefficients} and communicates only the \rev{shared-state coefficients}, \rev{thereby reducing recurring communication overhead}.
+
+\item Across \rev{six} federated benchmarks, \Design improves mean accuracy by $+4.3$\% points over HyperFeel~\cite{li2024hyperfeel} and $+21.2$\% points over FedHDC~\cite{ergun2023federatedhyperdimensionalcomputing}.
+On the controlled systems benchmark, it reduces recurring client-round latency by $3.0\times$ and communication volume by $62.5\times$ compared with these HDC baselines; \rev{when the one-time bootstrap is included, the 25-round runtime remains \(1.36\)--\(1.37\times\) faster.}
+\end{itemize}
+
+The remainder of this paper is organized as follows.
+Sec.~\ref{sec:background} provides background on hyperdimensional computing and its use in federated learning under heterogeneous clients.
+Sec.~\ref{sec:method} presents the proposed \Design\ framework, including the \rev{shared--local state decomposition of prototype memory}, local learning, and server-side aggregation.
+Sec.~IV evaluates \Design\ across multiple federated benchmarks, analyzing both accuracy and system efficiency.
+Sec.~V discusses related work, and Sec.~VI concludes the paper.
+
+\section{Background}
+\label{sec:background}
+
+\subsection{Hyperdimensional Computing}
+
+HDC is a learning paradigm based on high-dimensional distributed representations, called \emph{hypervectors}, together with simple algebraic operations in that space.
+Given an input sample $x$, an encoder maps it to a hypervector
+\begin{equation}
+\label{eq:hdc_encoder}
+h = \phi(x) \in \mathbb{R}^{D},
+\end{equation}
+where $D$ is typically very large. 
+The encoder is designed so that input samples can be represented in a common hypervector space, while preserving useful latent structure from the original input, making it possible to learn and compare samples directly through operations on their hypervectors.
+Learning in HDC is then performed by constructing \emph{class hypervectors}, which serve as the classifier in hypervector space~\cite{rahimi2017hdc,stock2024hdc}.
+In the simplest case, encoded samples are grouped by class and averaged, so that each class is represented by one class hypervector~\cite{lee2024efficient, yu2023understandinghyperdimensionalcomputingparallel}.
+A common refinement is error-driven learning: when a sample is misclassified, the encoded hypervector is element-wise added to the true-class hypervector and element-wise subtracted from the wrongly predicted class hypervector.
+Prediction is made by comparing the encoded query hypervector with the stored class hypervectors using a similarity measure such as cosine similarity or dot product~\cite{rahimi2016robust}.
+%Thus, HDC learns the classifier directly as a set of class hypervectors in high-dimensional space.
+
+\subsection{Hyperdimensional Computing in FL under Heterogeneity}
+The prototype-based learning of HDC fits federated learning (FL), where multiple clients train collaboratively while keeping raw data local~\cite{CHEN2025101568, 10546794, Tian2025Fed}.
+HDC performs learning in hypervector space through simple operations such as element-wise addition, element-wise subtraction, and similarity-based prediction, instead of repeated backpropagation through a deep network.
+This lightweight computation supports fast local updates on edge, IoT, and robotic devices, where compute, memory, and communication are often limited~\cite{hyunsei2025fed, 10610176}.
+In federated HDC, each client constructs class hypervectors from its local data, sends compact model-side information to the server, and receives an aggregated update in return~\cite{flhdc2021hsieh,zhao2022fedhd}.
+Prior work shows that this representation can reduce local training overhead and communication cost in edge-oriented federated settings~\cite{li2024hyperfeel,zeulin2023resourceefficientfederatedhyperdimensionalcomputing}.
+These properties make HDC a practical foundation for FL under heterogeneous client conditions.
+
+\rev{However, under heterogeneous client distributions, each client's prototype memory also reflects patterns specific to its local data.}
+\rev{Thus, heterogeneity is not only a data-distribution issue; it also shapes what each client captures in its prototype memory.}
+\rev{When client prototype memories are aggregated into a single shared prototype memory, shared structure and client-specific details can become entangled within the same class hypervectors, making it difficult to determine which prototype information should be synchronized and which should remain local.}
+\rev{This motivates a representation-level personalization strategy that assigns federated roles to prototype information within the class-hypervector representation.}
+
+
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\rownorm}{\operatorname{row\_normalize}}
+\newcommand{\clip}{\operatorname{clip}}
+\newcommand{\TopEig}{\operatorname{TopEig}}
+\section{Proposed Method: \Design}
+\label{sec:method}
+
+\subsection{Problem Setup and Notation}
+\label{subsec:problem_setup}
+
+We consider personalized federated learning in hyperdimensional computing (HDC) with $N$ clients, $K$ classes, and hypervector dimension $D$.
+Client $i$ owns a local dataset
+\begin{equation}
+\mathcal{D}_i=\{(x_{i,j},y_{i,j})\}_{j=1}^{|\mathcal{D}_i|},
+\end{equation}
+where $x_{i,j}$ is an input sample and $y_{i,j}\in\{1,\dots,K\}$ is its class label.
+A shared encoder $\phi(\cdot)$ maps each input to a hypervector
+\begin{equation}
+\label{eq:client_encoded_hv}
+h_{i,j}=\phi(x_{i,j}) \in \R^D.
+\end{equation}
+
+Let $n_{i,k}$ denote the number of local training samples of class $k$ on client $i$.
+Using these encoded samples, each client constructs a matrix of class hypervectors
+\begin{equation}
+M_i \in \R^{K \times D},
+\end{equation}
+whose $k$-th row is the class hypervector of class $k$ on client $i$. We first compute the class-wise mean hypervector
+\begin{equation}
+\label{eq:proto_raw}
+\widetilde{M}_i[k]
+=
+\frac{\sum_{(x,y)\in \mathcal{D}_i}\mathbb{I}[y=k]\phi(x)}
+{\max(n_{i,k},1)},
+\end{equation}
+and then row-normalize it:
+\begin{equation}
+\label{eq:proto_norm}
+M_i[k]
+=
+\begin{cases}
+\rownorm(\widetilde{M}_i[k]), & n_{i,k}>0,\\
+\mathbf{0}, & n_{i,k}=0.
+\end{cases}
+\end{equation}
+
+Thus, $M_i$ is the set of class hypervectors induced by the local data of client $i$.
+In personalized federated learning, the key question is not whether class hypervectors should be fully shared or fully local, but which prototype information should \rev{be included in the shared state} and which part should \rev{remain local}.
+
+The goal of \Design\ is therefore to decompose each client's matrix of class hypervectors into \rev{shared and local states}, and to synchronize only the \rev{shared state}.
+Here, a \emph{branch} refers to a set of hypervectors together with their associated coefficients in the prototype representation.
+In our design, the \rev{prototype representation is organized into} a \emph{common branch}, a \emph{global branch}, and a \emph{personal branch}, while its coefficients are \rev{partitioned into shared and local states}.
+The common branch captures \rev{shared class-hypervector structure that can be further adapted by local corrections}, while the global branch \rev{serves as a server-coordinated shared reference} during federated training.
+This separation allows local adjustment in the common branch without directly overwriting the global branch.
+The personal branch preserves \rev{personal residual structure that remains in the local state}.
+
+
+\subsection{Overview}
+\label{subsec:overview}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/Overview_crop.pdf}
+    \caption{Overview of \Design. The method first builds a decomposition of the class hypervectors during the bootstrap stage, and then \rev{synchronizes only the shared state} during federated training.}
+    \label{fig:overview}
+\end{figure}
+
+\Figure~\ref{fig:overview} illustrates the learning procedure of \Design.
+\Design decomposes the class hypervectors into three representations: a common branch, a global branch, and a personal branch.
+\rev{These branches define role-specific components, while their coefficients are partitioned into a shared state and a local state.}
+
+The method performs two phases: the \textit{bootstrap stage} and \textit{federated training stage}.
+The purpose of the \emph{bootstrap stage} is to initialize this decomposition before iterative federated updates begin.
+Each client first encodes its local data and constructs its matrix of class hypervectors $M_i$.
+The server then uses the collection of client class hypervectors to compute a \emph{common basis} and a \emph{global basis}.
+Using the common basis, the server projects the client class hypervectors, averages the resulting common coefficients across clients, and forms the initial \rev{common coefficients of the shared state}.
+Based on the remaining \rev{local residual component}, each client initializes its own personal branch.
+After this stage, each client has a decomposition consisting of \rev{shared and local coefficient states defined over the common, global, and personal branches}.
+
+The purpose of the \emph{federated training stage} is to \rev{synchronize the shared state while retaining the local state on each client}.
+In each round, an encoded hypervector is represented by \rev{shared-state and local-state coefficients over the common, global, and personal branches}, and prediction is performed directly from these coefficients with cosine similarity.
+When a sample is misclassified, the client applies an error-driven update to its local coefficients.
+
+After local training, each client computes \emph{class-wise error statistics} on its local data and converts them into \emph{class-wise update weights}.
+The client then uploads the \rev{shared-state coefficients}, i.e., the common and global coefficients, while the \rev{local-state coefficients} remain local.
+This uplink is the only information transmitted to the server for synchronization.
+
+At the server, the uploaded \rev{shared-state coefficients} are combined across clients by class-wise weighted summation using the class sample counts \rev{to produce aggregated shared-state coefficients}.
+The server then broadcasts these aggregated \rev{shared-state coefficients}.
+After receiving them, each client updates its \rev{local copy of the shared state} using its local class-wise update weights.
+In this way, classes with higher local error follow the aggregated \rev{shared-state coefficients} more strongly, while classes that are already well adapted preserve more of their local class hypervectors.
+
+
+
+
+\subsection{Extracting Shared Bases}
+\label{subsec:shared_basis}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/Bootstrap_crop.pdf}
+    \caption{Bootstrap stage of the \rev{shared--local state decomposition of class hypervectors}. The server computes the common and global bases from client class hypervectors, and the \rev{shared-state coefficients and local-state coefficients are initialized accordingly}.}
+    \label{fig:bootstrap}
+\end{figure}
+
+The goal of the \emph{bootstrap stage} is to extract the shared structure that is consistent across clients.
+Since each client's class hypervectors contain both shared and \rev{local} variations, we construct a \rev{server-side representation} by aggregating second-order statistics across clients.
+Intuitively, this step identifies directions in hypervector space that capture common patterns, which will later form the \rev{shared bases of the representation}.
+
+To initialize the \rev{shared--local state decomposition}, each client first encodes its local samples into hypervectors using a shared HDC encoder initialized by the server.
+\rev{We instantiate the encoder $\phi(\cdot)$ in Eq.~\eqref{eq:client_encoded_hv} using random encoder base hypervectors and cosine projection.} Following~\cite{imani2020dual}, each encoder base hypervector is sampled from a standard normal distribution.
+Let $\{b_\ell\}_{\ell=1}^D$ denote the encoder base hypervectors.
+For a local sample $x_{i,j}\in\mathbb{R}^{F}$, the encoded hypervector is
+\begin{equation}
+\label{eq:local_hv}
+h_{i,j}=\phi(x_{i,j}),
+\qquad
+[h_{i,j}]_\ell = \cos(b_\ell^\top x_{i,j}),
+\;\; \ell=1,\dots,D.
+\end{equation}
+
+For client $i$, the encoded hypervectors are grouped by class and averaged to form class hypervectors.
+Stacking them gives the client class hypervectors
+\begin{equation}
+M_i \in \mathbb{R}^{K\times D}.
+\end{equation}
+
+The server then uses the collection of client class hypervectors $\{M_i\}_{i=1}^N$ to compute the \rev{shared bases for the common and global branches}.
+Formally, the server computes the pooled covariance
+\begin{equation}
+\label{eq:cov}
+\Sigma
+=
+\sum_{i=1}^{N} M_i^\top M_i.
+\end{equation}
+It then applies eigen decomposition to obtain
+\begin{equation}
+B = [B_c,\; B_g] \in \mathbb{R}^{D\times(r_c+r_g)},
+\end{equation}
+where $B_c \in \mathbb{R}^{D\times r_c}$ is the common basis and $B_g \in \mathbb{R}^{D\times r_g}$ is the global basis.
+The common basis and global basis together define the \rev{shared bases used by the shared state}.
+
+
+
+
+
+\subsection{Initialization of the \rev{Shared and Local States}}
+\label{subsec:bootstrap_init}
+
+\rev{\Figure~\ref{fig:bootstrap} illustrates how the shared and local states are initialized after obtaining the shared bases.}
+\rev{In this stage, each client's prototype memory is decomposed into shared-state and local-state components.}
+The key idea is to project client prototypes onto the \rev{common basis} to extract transferable information, while assigning the residual \rev{remaining after the shared-basis components are removed to the personal branch within the local state}.
+This initialization establishes a clear separation between shared and \rev{local} structure before federated training begins.
+
+Using the bootstrapped shared bases, the server initializes the \rev{shared-state coefficients}, and each client initializes the \rev{local state by setting the common-basis correction and deriving its personal branch}.
+To this end, the server first projects class hypervectors of each client onto the common basis:
+\begin{equation}
+\label{eq:c_total}
+C_i^{\mathrm{tot}} = M_i B_c.
+\end{equation}
+It then computes the class-wise common consensus
+\begin{equation}
+\label{eq:c_global}
+C_{\mathrm{global}}[k]
+=
+\frac{\sum_{i=1}^{N} n_{i,k}\, C_i^{\mathrm{tot}}[k]}
+{\sum_{i=1}^{N} n_{i,k}},
+\end{equation}
+where $n_{i,k}$ is the number of local samples of class $k$ at client $i$.
+If $\sum_{i=1}^{N} n_{i,k}=0$, then $C_{\mathrm{global}}[k]$ is set to $\mathbf{0}$.
+
+In the bootstrap stage, only the \rev{common coefficients of the shared state} are initialized from the shared consensus.
+The \rev{global coefficients} and the \rev{local common-basis correction} are initialized to zero:
+\begin{equation}
+\label{eq:bootstrap_shared}
+C_i^{(0)} = C_{\mathrm{global}}, \qquad
+G_i^{(0)} = \mathbf{0}, \qquad
+\Delta_i^{(0)} = \mathbf{0}.
+\end{equation}
+
+After receiving the broadcast shared state, each client initializes the \rev{personal branch of its local state} from the residual part of its local class hypervectors after removing \rev{their projection onto the shared bases}.
+Let
+\begin{equation}
+B=[B_c,\;B_g], \qquad
+R_i = M_i(I-BB^\top).
+\end{equation}
+Client $i$ then computes its personal basis $B_p\in\mathbb{R}^{D\times r_p}$ as the top-$r_p$ right singular vectors of $R_i$.
+The initial personal coefficients are
+\begin{equation}
+\label{eq:personal_coords_init}
+P_i^{(0)} = R_i B_p.
+\end{equation}
+
+The resulting initialized class hypervector matrix is
+\begin{equation}
+\label{eq:init_memory}
+\begin{aligned}
+M_i^{(0)}
+&=
+\rownorm\!\Bigl(
+\underbrace{C_{\text{global}} B_c^\top + G_i^{(0)} B_g^\top}_{\text{\rev{shared state}}}
+\\[-1mm]
+&\qquad\qquad\qquad
++\;
+\underbrace{\Delta_i^{(0)} B_c^\top + P_i^{(0)} B_p^\top}_{\text{\rev{local state}}}
+\Bigr).
+\end{aligned}
+\end{equation}
+
+
+
+
+
+
+\subsection{\rev{Client-Side Coefficient} Learning with HDC}
+\label{subsec:local_learning}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/Local_update_crop.pdf}
+    \caption{\rev{Client-side} coefficient learning of class hypervectors in the proposed framework. Each encoded sample is projected onto the learned common, global, and personal bases, compared with the stored class hypervector coefficients, and used to update the \rev{shared-state and local-state coefficients}.}
+    \label{fig:local_update}
+\end{figure}
+
+
+
+After the bootstrap stage, client $i$ has \rev{shared and local coefficient states defined over the common, global, and personal branches} for its class hypervectors.
+The purpose of \rev{client-side coefficient learning} is to refine these class hypervectors directly in coefficient space, so that training can be performed without repeatedly reconstructing a full $D$-dimensional class hypervector matrix.
+This design enables efficient learning while preserving the decomposition structure, allowing \rev{both shared-state and local-state coefficients} to be updated in a coordinated manner.
+\rev{Fig.~\ref{fig:local_update} summarizes this client-side coefficient learning process, from coefficient-space projection to error-driven coefficient update.}
+
+For an encoded sample $h=\phi(x)$, the client projects $h$ once onto the common, global, and personal basis and caches the resulting coordinates:
+\begin{equation}
+\label{eq:sample_proj}
+z_c = h B_c, \qquad
+z_g = h B_g, \qquad
+z_p = h B_p.
+\end{equation}
+
+
+For class $k$, the \rev{shared state} stores common coefficients $C_i[k]$ and global coefficients $G_i[k]$.
+The \rev{local state} stores a \rev{common-basis correction} $\Delta_i[k]$ and personal coefficients $P_i[k]$ in the personal basis.
+Because $C_i[k]$ and $\Delta_i[k]$ lie in the same common basis, they combine additively.
+The resulting class hypervector coordinates are
+\begin{equation}
+\label{eq:class_coord_full}
+s_{i,k}^{\text{full}}
+=
+\big[C_i[k]+\Delta_i[k],\; G_i[k],\; P_i[k]\big],
+\end{equation}
+and the corresponding query coordinates are
+\begin{equation}
+\label{eq:query_coord_full}
+q_i^{\text{full}}(h)
+=
+\big[z_c,\; z_g,\; z_p\big].
+\end{equation}
+Prediction is then performed by cosine similarity directly with coefficients:
+\begin{equation}
+\label{eq:predict_coord}
+\hat{y}
+=
+\arg\max_{k\in\{1,\dots,K\}}
+\cos\!\left(
+q_i^{\text{full}}(h),\;
+s_{i,k}^{\text{full}}
+\right).
+\end{equation}
+
+
+
+If $\hat{y}\neq y$, the client updates the corresponding coefficient rows by a push--pull rule.
+The \rev{shared-state coefficients} are updated with learning rate $\eta_s$:
+\begin{align}
+\label{eq:update_common}
+C_i[y] &\leftarrow C_i[y] + \eta_s z_c, &
+C_i[\hat{y}] &\leftarrow C_i[\hat{y}] - \eta_s z_c,\\
+\label{eq:update_global}
+G_i[y] &\leftarrow G_i[y] + \eta_s z_g, &
+G_i[\hat{y}] &\leftarrow G_i[\hat{y}] - \eta_s z_g,
+\end{align}
+and the \rev{local-state coefficients} are updated with learning rate $\eta_p$:
+\begin{align}
+\label{eq:update_delta}
+\Delta_i[y] &\leftarrow \Delta_i[y] + \eta_p z_c, &
+\Delta_i[\hat{y}] &\leftarrow \Delta_i[\hat{y}] - \eta_p z_c,\\
+\label{eq:update_personal}
+P_i[y] &\leftarrow P_i[y] + \eta_p z_p, &
+P_i[\hat{y}] &\leftarrow P_i[\hat{y}] - \eta_p z_p.
+\end{align}
+
+
+
+This update rule gives each state and branch a distinct role.
+The common coefficients $C_i$ and global coefficients $G_i$ refine the \rev{shared state}, while the client-specific correction $\Delta_i$ and the personal coefficients $P_i$ refine the \rev{local state}.
+Because both $C_i$ and $\Delta_i$ are defined in the common basis, the common basis carries both \rev{shared-state structure and local adaptation}.
+This gives the common basis a larger functional role than the global basis during \rev{client-side coefficient learning}.
+The global coefficients $G_i$ remain in the \rev{shared state} and are later synchronized through server-side aggregation, whereas $\Delta_i$ provides a \rev{local common-basis correction} to the common coefficients using local data.
+
+After local training, client $i$ computes class-wise error statistics from its final class hypervector coefficients.
+Let $t_{i,k}$ be the number of local training samples of class $k$, and let $w_{i,k}$ be the number of those samples that remain misclassified after local training.
+The class-wise error ratio is then
+\begin{equation}
+\label{eq:error_ratio}
+e_{i,k}
+=
+\frac{w_{i,k}}{\max(t_{i,k},1)}.
+\end{equation}
+This class-wise error statistic remains local to client $i$ and is later used to determine the class-wise update weight for incorporating the aggregated \rev{shared-state coefficients} after server-side aggregation.
+
+
+
+
+
+
+
+
+\subsection{Server-Side \rev{Shared-State Coefficient} Aggregation and \rev{Client-Side Shared-State} Update}
+\label{subsec:aggregation}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/Communication_w_server_crop.pdf}
+    \caption{Server-side \rev{shared-state coefficient} aggregation and local \rev{shared-state} update. Clients upload only the common and global coefficients, the server aggregates them class-wise, and each client then uses its local class-wise update weights to determine how strongly to follow the \rev{aggregated shared-state coefficients}.}
+    \label{fig:communicate_server}
+\end{figure}
+
+\rev{Fig.~\ref{fig:communicate_server} illustrates the synchronization step after client-side coefficient updates, where shared-state coefficients are aggregated across clients while respecting client-specific differences through local class-wise update weights.} \rev{Specifically, the server performs} class-wise aggregation of \rev{the shared-state coefficients,} \rev{after which each client adapts} \rev{the server-aggregated shared-state update} based on its local error.
+This ensures that classes requiring more correction receive stronger updates, while well-learned classes remain stable, enabling selective and adaptive synchronization.
+
+Concretely, post-local training, client $i$ uploads only its \rev{shared-state coefficients}, namely the common coefficients $C_i$ and the global coefficients $G_i$.
+The \rev{local-state coefficients} $(\Delta_i, P_i)$ remain local.
+Using the uploaded \rev{shared-state coefficients}, the server computes a class-wise \rev{shared-state consensus}:
+\begin{equation}
+\label{eq:agg_shared}
+\bar{C}[k]
+=
+\frac{\sum_{i=1}^{N} n_{i,k}\, C_i[k]}
+{\sum_{i=1}^{N} n_{i,k}},
+\qquad
+\bar{G}[k]
+=
+\frac{\sum_{i=1}^{N} n_{i,k}\, G_i[k]}
+{\sum_{i=1}^{N} n_{i,k}},
+\end{equation}
+where $n_{i,k}$ is the number of local samples of class $k$ at client $i$.
+If $\sum_{i=1}^{N} n_{i,k}=0$, then $\bar{C}[k]$ and $\bar{G}[k]$ are set to $\mathbf{0}$.
+Because the aggregation is weighted class-wise by $n_{i,k}$, a client with no local samples for class $k$ contributes nothing to row $k$.
+
+
+Each client next updates its \rev{local copy of the shared state} using its local class-wise error statistics.
+If class $k$ still has high local error, the client should follow the aggregated \rev{shared-state coefficients} more strongly; if class $k$ is already modeled well locally, the client should change less.
+We therefore define the local class-wise update weight as
+\begin{equation}
+\label{eq:update_weight}
+\omega_{i,k}
+=
+\begin{cases}
+e_{i,k}, & t_{i,k}>0,\\
+0, & t_{i,k}=0,
+\end{cases}
+\end{equation}
+where $e_{i,k}$ is the class-wise error ratio defined above.
+
+Let
+\begin{equation}
+U_i = [C_i\;\;G_i],
+\qquad
+\bar{U} = [\bar C\;\;\bar G].
+\end{equation}
+Client $i$ then updates the \rev{shared-state coefficients} row-wise as
+\begin{equation}
+\label{eq:shared_update}
+U_i^{+}[k,:]
+=
+U_i[k,:]
++
+\eta_g\,\omega_{i,k}\bigl(\bar{U}[k,:]-U_i[k,:]\bigr).
+\end{equation}
+
+
+
+
+
+\subsection{Inference}
+\label{subsec:inference}
+Inference follows the same decomposition principle used during training.
+Instead of reconstructing full prototype hypervectors, predictions are made directly in the coefficient space by combining \rev{shared-state and local-state coefficients}.
+This preserves efficiency while ensuring that both \rev{shared structure and local adaptations} contribute to the final decision.
+
+Inference uses the same coefficient representation of the class hypervectors as \rev{client-side coefficient learning}.
+Given an input sample \(x\), client \(i\) first encodes it into a query hypervector \(x_{\mathrm{hv}}=\phi(x)\).
+The query hypervector is then projected onto the common, global, and personal basis:
+\begin{equation}
+\label{eq:infer_proj}
+z_c = x_{\mathrm{hv}} B_c, \qquad
+z_g = x_{\mathrm{hv}} B_g, \qquad
+z_p = x_{\mathrm{hv}} B_p.
+\end{equation}
+These three projections give the query coefficients
+\begin{equation}
+\label{eq:infer_query_coord}
+q_i(x) = [z_c,\; z_g,\; z_p].
+\end{equation}
+
+For class \(k\), client \(i\) stores the class hypervector through its \rev{coefficient representation over the branches}.
+The corresponding class hypervector coefficients are
+\begin{equation}
+\label{eq:infer_class_coord}
+u_{i,k} = [C_i[k]+\Delta_i[k],\; G_i[k],\; P_i[k]].
+\end{equation}
+Here, \(C_i[k]+\Delta_i[k]\) gives the common-branch coefficients with a \rev{local common-basis correction}, \(G_i[k]\) gives the global-branch coefficients, and \(P_i[k]\) gives the personal-branch coefficients.
+
+Thus, inference compares the query with each class hypervector through the \rev{shared-state and local-state coefficients} together.
+The prediction is made directly from the \rev{coefficient representation}, without explicitly reconstructing a full \(D\)-dimensional class hypervector.
+
+
+
+
+
+
+
+\subsection{Communication and Complexity}
+\label{subsec:cost}
+
+A key advantage of \Design is that communication and computation scale with the low-rank representation rather than the full hypervector dimension.
+By transmitting only \rev{shared-state coefficients} and keeping \rev{local-state coefficients} local, the method significantly reduces communication overhead while maintaining model expressiveness.
+This section quantifies these efficiency gains.
+
+A full class hypervector stores one $D$-dimensional class hypervector for each of the $K$ classes, so it contains $K\times D$ values.
+In \Design, each client uploads only the common coefficients $C_i$ and global coefficients $G_i$, which together contain $K\times(r_c+r_g)$ values per round.
+The \rev{local common-basis correction} $\Delta_i$, the personal coefficients $P_i$, the personal basis $B_{p,i}$, and the class-wise error statistics used to form local class-wise update weights remain on the client.
+Ignoring negligible protocol metadata, the recurring communication ratio relative to uploading a full class hypervector memory is therefore
+\begin{equation}
+\label{eq:payload_ratio}
+\frac{\text{payload}_{\text{ours}}}{\text{payload}_{\text{full}}}
+\approx
+\frac{r_c+r_g}{D}.
+\end{equation}
+Because $r_c+r_g \ll D$, the recurring communication cost is substantially reduced.
+
+The server-side \rev{shared-state coefficient} aggregation step is also low-rank.
+The server receives only the uploaded common and global coefficients, computes class-wise weighted averages, and broadcasts the aggregated \rev{shared-state coefficients} back to the clients.
+Each client then updates its \rev{local copy of the shared state} by moving its common and global coefficients toward the broadcast \rev{shared-state coefficients}, with a separate local class-wise update weight controlling how strongly each class follows the \rev{shared-state update}.
+
+Computation likewise remains in coefficient space.
+For an encoded hypervector $h$, projection onto the common, global, and personal bases costs $O\!\bigl(D(r_c+r_g+r_p)\bigr)$.
+Once projected, class scoring is performed in the concatenated coefficient space, so comparing against all $K$ classes costs $O\!\bigl(K(r_c+r_g+r_p)\bigr)$.
+This avoids repeated comparison against a full $D$-dimensional class hypervector memory.
+
+The only additional one-time cost relative to a purely \rev{shared-state representation} appears in the bootstrap stage, where each client computes its personal basis from the residual class hypervectors.
+Let $R_i = M_i(I-BB^\top)\in\mathbb{R}^{K\times D}$ and $B=[B_c,B_g]$.
+Obtaining the personal basis $B_{p,i}$ requires a truncated rank-$r_p$ decomposition only once at initialization.
+The client-side memory for this step is dominated by storing the class hypervectors and basis matrices, namely $O\!\bigl(KD + D(r_c+r_g+r_p)\bigr)$ values.
+
+Overall, the one-time bootstrap stage computes the decomposition, whereas the recurring federated rounds communicate and update only the \rev{shared-state coefficients}.
+The resulting round cost therefore scales with the retained low-rank dimensions rather than with the full-dimension $D$.
+
+
+
+
+
+
+
+\section{EXPERIMENTS}
+
+\subsection{Experimental Setup}
+
+We evaluate on \rev{six} federated benchmarks: UCI-HAR, ISOLET, FEMNIST, WISDM, Synthetic, and NinaPro DB1.
+We use the natural user- or subject-level federated split whenever available; otherwise, we use the standard heterogeneous partition.
+Reported results are mean accuracies over multiple runs.
+
+UCI-HAR~\cite{human_activity_recognition_using_smartphones_240} uses a subject-based split with 30 clients, $\ell_2$ normalization, and a 30\% test split when required by the benchmark pipeline.
+ISOLET~\cite{isolet_54} uses its original federated split with 8 clients, $\ell_2$ normalization, and a 30\% test split.
+FEMNIST~\cite{caldas2019leafbenchmarkfederatedsettings} follows the original LEAF writer split, using the first 200 clients and the canonical train/test partition; inputs are $\ell_2$-normalized.
+%PAMAP2~\cite{pamap2_physical_activity_monitoring_231} uses a subject split with 8 clients, standardized features, a 30\% test split, and per-client caps of 5{,}000 training and 1{,}000 test samples.
+WISDM~\cite{wisdm_smartphone_and_smartwatch_activity_and_biometrics_dataset__507} uses the smartphone-accelerometer modality with a user split over 51 clients, standardized features, a 30\% test split, and the same per-client caps of 5{,}000 training and 1{,}000 test samples.
+Synthetic~\cite{caldas2019leafbenchmarkfederatedsettings} uses the LEAF-style user split with 30 clients and no additional normalization.
+NinaPro DB1~\cite{Ninapro2015} uses a subject split with the electromyography-and-glove modality over 27 clients, standardized features, a 30\% test split, and per-client caps of 5{,}000 training and 1{,}000 test samples.
+
+\noindent\textbf{Baselines.}
+We compare against HD baselines (\textbf{FedHDC}~\cite{ergun2023federatedhyperdimensionalcomputing} and \textbf{HyperFeel}~\cite{li2024hyperfeel}) and neural federated baselines (\textbf{FedAvg}~\cite{mcmahan2023communicationefficientlearningdeepnetworks} %\textbf{Ditto}~\cite{li2021dittofairrobustfederated}, %\textbf{pFedMe}~\cite{dinh2022personalizedfederatedlearningmoreau},
+and \textbf{DFL}~\cite{luo2022disentangledfederatedlearningtackling}).
+\rev{\textbf{FedHDC} is a global federated HDC baseline that aggregates class hypervector memories across clients.}
+\rev{\textbf{HyperFeel} adapts client-side HD updates for non-IID data while retaining a globally synchronized prototype memory.}
+\rev{\textbf{FedAvg} is a global neural FL reference.}
+\rev{\textbf{DFL} is a neural disentanglement-based personalization reference that maintains client-specific model state in addition to a shared branch.}
+\rev{For each baseline, the method-specific update rule follows the original design, while dataset splits and training budget are shared under the protocol described below.}
+
+\noindent\textbf{Training protocol.}
+All methods are trained for 25 communication rounds with full client participation, 3 local epochs per round, and batch size 32.
+For large-scale datasets (WISDM, NinaPro DB1), when the total number of training samples exceeds 100{,}000, we reduce the total to 50{,}000 through class-stratified subsampling within clients to keep the training budget comparable across datasets.
+
+\noindent\textbf{Neural network baselines.}
+On FEMNIST, FedAvg use a CNN with two convolutional blocks (32 and 64 channels), ReLU, max-pooling, a 2048-unit fully connected layer, and a linear classifier.
+DFL uses the corresponding two-branch CNN.
+These models are trained with SGD with learning rate 0.06, without momentum, weight decay, or dropout; for DFL, the alignment and disentanglement weights are 1.0 and 0.1, respectively, with sample-wise standardization.
+
+On the other datasets, the neural network baselines use a 4-layer MLP with hidden width 256 and no dropout, while DFL uses the corresponding two-branch MLP.
+These models are trained with Adam with learning rate 0.001.
+Personalized neural network baselines use one personalization step per round.
+
+\noindent\textbf{HD setting.}
+For all HD-based methods, we use HD dimension \(D=2000\), HD learning rate 0.035, and no validation split.
+Our method uses a \rev{shared-state rank} of 32, decomposed into common rank 24 and global-only rank 8, together with a personal rank of 64.
+Because no single rank configuration is uniformly optimal across all datasets, we additionally report a separate rank-screening study with dataset-specific alternatives.
+
+Unless otherwise noted in the experiment-specific description, all experiments follow the training protocol, neural network baseline setting, and HD setting described above.
+
+
+
+
+
+
+% \subsection{Datasets and Training Protocol}
+
+% We evaluate on seven federated learning benchmarks: \textbf{UCI-HAR}, \textbf{ISOLET}, \textbf{FEMNIST}, \textbf{PAMAP2}, \textbf{WISDM}, \textbf{Synthetic}, and \textbf{NinaPro DB1}. Client partitions follow the natural user- or subject-level split whenever such a split is available; otherwise, a standard heterogeneous partition is used.
+
+% \textbf{UCI-HAR}~\cite{human_activity_recognition_using_smartphones_240} uses a subject-based federation with up to 30 clients. We preserve the original subject split, use 30\% of the data for testing when required by the benchmark pipeline, and apply $\ell_2$ normalization.  
+% \textbf{ISOLET}~\cite{isolet_54} uses its original federated partition with 8 clients. We reserve 30\% of the data for testing and apply $\ell_2$ normalization.   
+% \textbf{FEMNIST}~\cite{caldas2019leafbenchmarkfederatedsettings} follows the original LEAF writer-based federation, where each writer is treated as one client. We use up to 200 clients, preserve the canonical train/test split. Inputs are $\ell_2$-normalized.  
+% \textbf{PAMAP2}~\cite{pamap2_physical_activity_monitoring_231} uses a subject-based federation with up to 8 clients. For each client, 30\% of the data is held out for testing. Features are standardized, and the numbers of training and test samples per client are capped at 5{,}000 and 1{,}000, respectively.  
+% \textbf{WISDM}~\cite{wisdm_smartphone_and_smartwatch_activity_and_biometrics_dataset__507} uses a user-based federation with the smartphone accelerometer modality and up to 51 clients. We reserve 30\% of each client's data for testing, standardize the features, and cap training and test samples at 5{,}000 and 1{,}000 per client.  
+% \textbf{Synthetic}~\cite{caldas2019leafbenchmarkfederatedsettings} uses the LEAF-style user partition with up to 30 clients and no additional feature normalization.  
+% \textbf{NinaPro DB1}~\cite{Ninapro2015} uses a subject-based federation with the electromyography-and-glove modality and up to 27 clients. We reserve 30\% of each client's data for testing, standardize the features, and cap training and test samples at 5{,}000 and 1{,}000 per client.
+
+% \noindent \textbf{Baselines} We compare our method against both HD-based and neural federated baselines.
+% Among the HD-based methods, \textbf{FedHDC}~\cite{ergun2023federatedhyperdimensionalcomputing} and \textbf{HyperFeel}~\cite{li2024hyperfeel} represent lightweight federated learning with hyperdimensional prototype-style models. These baselines are particularly relevant for evaluating whether our structured shared--personal decomposition improves over prior communication-efficient HDC-based federation.
+
+% For neural baselines, we include \textbf{FedAvg}~\cite{mcmahan2023communicationefficientlearningdeepnetworks} as the standard global federated learning baseline, \textbf{Ditto}~\cite{li2021dittofairrobustfederated} and \textbf{pFedMe}~\cite{dinh2022personalizedfederatedlearningmoreau} as representative personalized federated learning methods, and \textbf{DFL}~\cite{luo2022disentangledfederatedlearningtackling} as a disentangled two-branch baseline that separates shared and client-specific representations. This selection allows us to compare against global FL, personalized FL, disentangled personalization, and prior HDC-based federated learning within a unified evaluation setting.
+
+% \noindent \textbf{Training configuration}
+% To keep the computational budget comparable across datasets, we apply a global training-sample budget for large-scale settings. When the total number of training samples summed over all clients exceeds 100{,}000, we reduce the total training set to 50{,}000 through class-stratified subsampling within each client's local training set. This dataset-level budget control is distinct from the separate per-client sample caps used for selected datasets.
+
+% All methods are trained for 25 communication rounds. In each round, all clients participate, and each client performs 3 local epochs with a mini-batch size of 32.
+
+% For the neural baselines, we use dataset-appropriate backbones rather than a single architecture for all datasets. On \textbf{FEMNIST}, \textbf{FedAvg}, \textbf{Ditto}, and \textbf{pFedMe} use a CNN with two convolutional blocks (32 and 64 channels), each followed by ReLU and max-pooling, followed by a 2048-unit fully connected layer and a linear classifier. \textbf{DFL} uses the corresponding two-branch CNN variant, in which both the global and local branches use the same CNN backbone and their outputs are concatenated before the final classifier. These FEMNIST neural models are trained with SGD with learning rate 0.06, without momentum, weight decay, or dropout; for \textbf{DFL}, we additionally use alignment weight 1.0, disentanglement weight 0.1, and samplewise standardization.
+
+% On the remaining datasets, which use vectorized tabular or sensor features, the neural baselines use MLP backbones with four hidden layers of width 256 and no dropout. \textbf{DFL} uses the corresponding two-branch MLP variant. These non-FEMNIST neural models are trained with Adam with learning rate 0.001. This backbone choice is fixed per dataset and shared across the neural baselines within that dataset to preserve fairness. We perform one personalization step per round for the personalized neural methods.
+
+% For the HD-based setting, we use a representation dimension of 2{,}000, an HD learning rate of 0.035, and no validation split. The shared low-rank structure uses a total shared rank of 32, decomposed into a common shared subspace of rank 24 and a global-only shared subspace of rank 8, together with a personal subspace of rank 64. Because no single rank configuration is uniformly optimal across all datasets, we additionally conduct a separate rank-screening study with dataset-specific alternatives.
+
+
+
+
+
+\subsection{Accuracy}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/Main_result_crop.pdf}
+    \caption{Accuracy comparison across \rev{six} federated benchmarks.}
+    \label{fig:main_accuracy}
+\end{figure}
+
+Fig.~\ref{fig:main_accuracy} summarizes the main accuracy comparison across \rev{six} federated benchmarks.
+Overall, \Design improves over the prior HD-based baselines on most datasets.
+Using the mean accuracy across all \rev{six} benchmarks as a coarse summary, \Design reaches 72.66\%, compared with 68.28\% for \textbf{HyperFeel} and 51.38\% for \textbf{FedHDC}.
+This corresponds to gains of \(+4.38\%\) and \(+21.28\%\) percentage points, respectively.
+
+We observe that \Design is most effective on datasets where a single global model is not sufficient.
+On benchmarks such as WISDM and Synthetic, \textbf{FedAvg} yields significantly lower accuracy than personalized neural network baselines, which indicates a strong mismatch between global averaging and client-local structure.
+In contrast, \Design substantially improves learning quality over global summation-based HD federation on these benchmarks, suggesting that \rev{separating shared-state and local-state components of class hypervectors} is more effective than treating the class hypervectors as one globally averaged object.
+
+FEMNIST is particularly notable because the gap between HD and neural network-based methods becomes small.
+Here, \Design reaches 68.78\%, slightly above DFL at 67.83\% and HyperFeel at 67.42\%.
+This suggests that, even in a difficult many-class federated setting, a lightweight HD classifier can remain competitive when personalization is built into the class hypervector structure.
+
+%It is noteworthy that the improvement come from structures of the class hypervectors so that different subspaces serve different roles. The shared branch captures cross-client class hypervector structure that should be synchronized through federation, while the personal branch retains local structure that would otherwise be weakened by averaging. %In this sense, the results suggest that a key limitation of prior HD federation was not only the representation itself, but also the lack of an explicit mechanism for preserving personalized structure during sharing.
+
+The results also show that \Design achieves competitive learning performance compared to neural network-based baselines across most benchmarks, with the exception of NinaPro DB1.
+This difference reflects a fundamental trade-off between model capacity and efficiency.
+Neural network models typically rely on a large number of parameters to achieve high representational capacity, but this comes at the cost of substantial communication overhead in federated settings.
+In contrast, HDC-based methods, including \Design, operate with compact prototype representations whose dimensionality directly determines both model capacity and computation/communication cost.
+In the following subsections, we discuss how \Design leverages the efficiency of HDC representations to achieve significantly lower communication overhead (Sec.~\ref{sec:eff}) and how to mitigate the performance gap due to the model capacity limitation (Sec.~\ref{sec:dims}).
+
+%indicate the current limits of the method. ISOLET does not follow the overall trend, and PAMAP2 remains below the strongest neural network-based personalized baselines.
+%This shows that the shared--personal class hypervector decomposition substantially strengthens HD federation, but does not fully remove the performance gap to higher-capacity neural network-based personalization on every dataset.
+
+
+
+
+
+\subsection{Efficiency}
+\label{sec:eff}
+
+\begin{table}[t]
+\centering
+\caption{Bootstrap cost breakdown of \Design for shared-basis and \rev{local-state} initialization.}
+\label{tab:bootstrap_breakdown_ours_dummy_v4}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llc}
+\toprule
+Scope & Component & Time (ms) \\
+\midrule
+Server & Common/global basis computation & 47.74 \\
+Server & Projection of client hypervectors & 2.46 \\
+Server & Common/global coefficients build & 0.37 \\
+Server & \textbf{Server bootstrap total} & \textbf{50.57} \\
+\midrule
+Client & Residual class hypervectors build & 0.11 \\
+Client & Personal basis computation & 6.07 \\
+Client & Projection of Residual class hypervectors & 0.08 \\
+Client & Cached common/global/personal query coefficient build & 2.72 \\
+Client & \textbf{Client bootstrap wall time} & \textbf{8.98} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Per-round client and server cost breakdown of \Design after bootstrap caching.}
+\label{tab:federated_round_breakdown_ours_dummy_v4}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llc}
+\toprule
+Scope & Component & Time (ms) \\
+\midrule
+Client & Local similarity & 0.40 \\
+Client & \rev{Client-side coefficient update} & 0.78 \\
+Client & Final train dataset prediction & 0.42 \\
+Client & Class-wise error statistics & 0.03 \\
+Client & \textbf{Client round total} & \textbf{1.63} \\
+\midrule
+Server & Aggregation of common coefficients & 0.19 \\
+Server & Aggregation of global coefficients & 0.16 \\
+Client & client-side \rev{shared-state} update with class-wise update weights & 0.04 \\
+Mix & \textbf{synchronization step total} & \textbf{0.39} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+\begin{table}[t]
+\centering
+\caption{Federated-round compute and payload on the reduced synthetic benchmark.}
+\label{tab:federated_round_dummy_5methods_v4}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+Method & Local round & Similarity & Update & Server step & Uploaded payload \\
+& ms & ms & ms & ms & KB \\
+\midrule
+\textbf{\Design\ (Ours)} & 1.63 & 0.40 & 0.78 & 0.39 & 6.4 \\
+FedHDC & 4.72 & 2.52 & 2.20 & 1.25 & 400.0 \\
+HyperFeel & 4.87 & 2.50 & 2.37 & 1.17 & 400.0 \\
+FedAvg CNN & 553.85 & -- & 553.85 & 1.73 & 412.5 \\
+DFL CNN & 2063.61 & -- & 2063.61 & 1.63 & 409.1 \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+% ours only give bootstrap time others only broadcast the shared encoder, or start from random
+\noindent\rev{\textbf{Controlled systems benchmark.}} For the efficiency study, we design a controlled synthetic benchmark that enables fair comparison of round-level system cost across methods.
+The setup standardizes both dataset conditions and model scale, allowing us to isolate computational and communication overhead without confounding factors.
+The benchmark consists of 50 clients and 50 classes, with 1000 training samples per client and batch size 32 for one local epoch.
+To ensure consistent learning dynamics, each client is initialized with 500 misclassified samples.
+All experiments are conducted on CPU using an Intel(R) Core(TM) i9-14900KF.
+HDC-based methods use HD dimension \(D=2000\), with \Design configured using common rank 24, global rank 8, and personal rank 64.
+
+For neural network baselines, FedAvg/CNN and DFL/CNN use a dummy CNN with hidden width \(h=16\), selected to match the model size of the HDC setting.
+For \(K=50\), \(D=2000\), \(r_c=24\), and \(r_g=8\), the bootstrap uplink is \(4KD = 400.0\,\text{KB}\), the bootstrap downlink is \(4D(r_c+r_g) + 4Kr_c = 260.8\,\text{KB}\), and the recurring uplink for common and global coefficients is \(4K(r_c+r_g) = 6.4\,\text{KB}\).
+
+\noindent\rev{\textbf{One-time bootstrap cost.}} Table~\ref{tab:bootstrap_breakdown_ours_dummy_v4} reports the bootstrap cost of \Design.
+This stage computes the common and global bases on the server and the personal basis on each client.
+The server bootstrap time is 50.57\,ms, of which 47.74\,ms is spent on common/global basis computation.
+The client bootstrap wall time is 8.98\,ms, including 6.07\,ms for personal basis computation and 2.72\,ms for cached common/global/personal query coefficient construction.
+We report this stage separately because it occurs once before federated rounds begin.
+
+Table~\ref{tab:federated_round_breakdown_ours_dummy_v4} reports the recurring cost after bootstrap.
+Each client round takes 1.63\,ms, including 0.40\,ms for local similarity, 0.78\,ms for \rev{client-side coefficient update}, 0.42\,ms for final full-train prediction, and 0.03\,ms for class-wise error statistics.
+The server step takes 0.39\,ms, including aggregation of common coefficients, aggregation of global coefficients, and client-side shared-state update with class-wise update weights.
+
+Table~\ref{tab:federated_round_dummy_5methods_v4} compares the recurring round cost across methods.
+\Design uses 1.63\,ms per client round, compared with 4.72\,ms for FedHDC and 4.87\,ms for HyperFeel.
+FedAvg/CNN uses 553.85\,ms, and DFL/CNN uses 2063.61\,ms.
+The neural network baselines spend more time in local training because they rely on backpropagation, and DFL additionally maintains two branches during local optimization.
+
+The same table also shows the recurring upload payload.
+\Design uploads 6.4\,KB per round, while FedHDC and HyperFeel upload 400.0\,KB, FedAvg/CNN uploads 412.5\,KB, and DFL/CNN uploads 409.1\,KB.
+In our method, clients upload only the common and global coefficients, while the \rev{local-state coefficients remain local}.
+
+
+\noindent\rev{\textbf{Bootstrap-inclusive runtime.}} \rev{We next report the total wall-clock cost after including the one-time bootstrap initialization. From Table~\ref{tab:bootstrap_breakdown_ours_dummy_v4} and Table~\ref{tab:federated_round_breakdown_ours_dummy_v4}, we calculate the bootstrap-inclusive runtime by separately accounting for the one-time initialization cost and the recurring per-round cost.
+The bootstrap cost of \Design is the sum of the server bootstrap total and the client bootstrap wall time, $(50.57+8.98=59.55)$ ms, while the recurring per-round cost is the client round cost plus the synchronization step, $(1.63+0.39=2.02)$ ms.}
+\rev{Thus, for a complete \(R\)-round run,}
+\begin{equation}
+\label{eq:runtime_design}
+\rev{T_{\Design}(R)=59.55+2.02R~\mathrm{ms}.}
+\end{equation}
+\rev{FedHDC and HyperFeel do not include this bootstrap stage. Their runtime therefore is obtained by repeating their per-round local and server costs, giving $(4.72+1.25=5.97)$ ms and $(4.87+1.17=6.04)$ ms per round, respectively:}
+\begin{equation}
+\label{eq:runtime_baselines}
+\rev{T_{\mathrm{FedHDC}}(R)=5.97R~\mathrm{ms}, \qquad}
+\rev{T_{\mathrm{HyperFeel}}(R)=6.04R~\mathrm{ms}.}
+\end{equation}
+\rev{For the 25-round setting used in the main experiments, this results in \(110.05\) ms for \Design, \(149.25\) ms for FedHDC, and \(151.00\) ms for HyperFeel.}
+
+\rev{Eq.~\ref{eq:runtime_design} and Eq.~\ref{eq:runtime_baselines} together show that \Design incurs a one-time bootstrap cost but reduces the recurring per-round costs.
+As this lower recurring cost amortizes the initilization overhead, \Design reaches a break-even point after approximately 15 rounds compared with FedHDC and HyperFeel.}
+\rev{Thus, after accounting for initialization, \Design remains faster at  the 25-round setting because recurring training and synchronization operate in low-rank coefficient space.}
+\rev{The recurring-round speedup is about \(3.0\times\), while the bootstrap-inclusive speedup at the main \(R=25\) setting is about \(1.36\)--\(1.37\times\).}
+
+
+
+\begin{table}[t]
+\centering
+\caption{\rev{Bootstrap-inclusive energy consumption.}}
+\label{tab:bootstrap_inclusive_energy}
+\begin{tabular}{lccc}
+\toprule
+\rev{Method} & \rev{Bootstrap Stage (J)} & \rev{Federated Round (J)} & \rev{Total (J)} \\
+\midrule
+\rev{\Design} & \rev{38.94} & \rev{42.67} & \rev{1105.69} \\
+\rev{FedHDC} & \rev{--} & \rev{114.07} & \rev{2851.75} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\noindent\rev{\textbf{CPU/RAPL energy measurement.} Using the same CPU setup, we also measure CPU energy consumption using Intel RAPL (Running Average Power Limit) counters.}
+\rev{These measurements provide a platform-level view of CPU-package energy behavior under the controlled benchmarks.}
+\rev{When the one-time bootstrap cost is included, \Design consumes $38.94 + 42.67 \times 25 = 1105.69$ J at $R=25$, while FedHDC consumes $114.07 \times 25 = 2851.75$ J.}
+\rev{Thus, even after accounting for the bootstrap stage, \Design reduces the total energy by 61.2\% compared with FedHDC; equivalently, FedHDC consumes 2.58$\times$ more total energy.}
+
+These results separate the one-time bootstrap stage from the recurring federated round.
+In \Design, the bootstrap stage adds an initial cost for basis construction, while the recurring round uses lower computation and lower upload payload.
+
+
+
+
+\subsection{Effect of HD Dimension}
+\label{sec:dims}
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{fig/dimension_crop.pdf}
+    \caption{Effect of HD dimension on mean personalized accuracy.}
+    \label{fig:dimension}
+\end{figure}
+
+As shown in Fig.~\ref{fig:dimension}, HD dimension mainly controls how much representational capacity is available for the prototypes.
+In \Design, this matters because the method must represent both \rev{shared-state and local-state components} of the prototype decomposition.
+%When the dimension is too small for a dataset, increasing it gives the model more room to separate useful shared information from client-specific information.
+When the dimension is already sufficient, the benefit quickly becomes small.
+Some datasets remain clearly dimension-sensitive as shown in Fig.~\ref{fig:dimension}(a).
+This effect is strongest on NinaPro DB1, where the mean personalized accuracy increases monotonically from \(69.7\%\) at \(d=1000\) to \(74.7\%\) at \(d=2000\), \(79.6\%\) at \(d=5000\), and \(81.7\%\) at \(d=10000\).
+%PAMAP2 shows the same pattern, improving from \(41.7\%\) to \(46.0\%\), \(50.7\%\), and \(53.3\%\).
+Synthetic also improves steadily from \(72.8\%\) to \(74.2\%\), \(75.0\%\), and \(76.5\%\).
+It suggests that, on these datasets, the prototype representation is still short of capacity at lower dimensions, so a larger HD space remains useful.
+
+As shown in Fig.~\ref{fig:dimension}(b), Other datasets are already close to saturation at moderate dimension.
+UCI-HAR stays nearly flat across the full range, with accuracies of \(97.3\%\), \(97.5\%\), \(97.6\%\), and \(97.5\%\) for \(d=1000, 2000, 5000, 10000\), respectively.
+FEMNIST also changes very little, moving from \(68.8\%\) to \(68.8\%\), \(69.2\%\), and \(69.0\%\).
+ISOLET and WISDM follow the same qualitative pattern, with only mild changes as dimension increases.
+For these datasets, the main prototype structure is already captured well at moderate dimension, so enlarging the HD space adds little.
+
+Overall, these results indicate that HD dimension is not a uniformly effective performance lever, but rather depends on whether additional representational capacity is needed for a given dataset.
+Increasing dimension improves accuracy when prototype capacity is insufficient, but yields diminishing returns once the underlying structure is adequately captured.
+This behavior reflects a fundamental trade-off in HDC-based federated learning: higher dimensions increase model capacity but also directly raise communication cost.
+In practice, \(d=2000\) provides a strong operating point for several datasets, balancing accuracy and efficiency.
+Larger dimensions such as \(d=5000\) or \(d=10000\) can further improve performance on more challenging personalization tasks, such as NinaPro DB1, helping narrow the gap to higher-capacity neural network models at the expense of increased communication overhead.
+
+
+
+\subsection{Analysis}
+
+\paragraph{Ablation on each branch}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/branch_ablation_crop.pdf}
+    \caption{Branch-structure ablation shown as relative performance change with respect to the full model.}
+    \label{fig:branch_ablation}
+\end{figure}
+
+To verify that the improvement of the full model comes from the proposed prototype decomposition rather than from low-rank modeling alone, we perform a branch-structure ablation in which one branch is removed at a time while all other training settings are kept fixed.
+We compare the full model with five variants: \texttt{no\_common}, which removes the common branch; \texttt{no\_global}, which removes the global branch; \texttt{no\_personal}, which removes the personal branch; \rev{\texttt{common\_only}, which keeps only the common branch}; and \texttt{personal\_only}, which keeps only the personal branch.
+\rev{For the \texttt{no\_common} and \texttt{no\_global} variants, the removed branch rank is reassigned to the other shared-state-side branch so that the comparison reflects branch function rather than differences in shared-state capacity.}
+
+\Figure~\ref{fig:branch_ablation} shows that the contribution of each branch is strongly dataset-dependent.
+On NinaPro DB1, removing the personal branch leads to a clear performance drop of $46.9\%$, and the \rev{\texttt{common\_only}} variant degrades in a similar way.
+This indicates that, on this dataset, \rev{personal prototype information} is essential and cannot be recovered well from the \rev{common branch} alone.
+
+FEMNIST shows a different pattern.
+Removing the common branch causes a large drop of $14.4\%$, whereas removing the global branch changes performance only marginally ($+0.5\%$).
+This suggests that FEMNIST benefits mainly from a shareable prototype component that remains useful across clients, while a branch reserved only for strictly global prototype information contributes relatively little beyond that.
+
+\rev{Across datasets, Fig.~\ref{fig:branch_ablation} mainly characterizes the sources of mean-accuracy behavior.}
+\rev{The common and personal branches account for much of the observed dataset-dependent variation: the common branch is more important when shareable prototype structure is strong, whereas the personal branch is more important when client-specific variation is strong.}
+
+\rev{The global branch plays a narrower role than the common and personal branches.}
+\rev{It serves as a small server-coordinated shared reference during federated training, rather than as the main source of mean-accuracy gain.}
+\rev{We therefore evaluate it with a capacity-matched no-global variant, where the full model with \(r_c=24\) and \(r_g=8\) is compared against a variant that removes the global branch and reallocates its eight ranks to the common branch, preserving the total shared-state rank \(r_c+r_g=32\).}
+
+\rev{Averaged over the six benchmarks, retaining the global branch improves the 10th-percentile client accuracy from \(63.48\%\) to \(64.32\%\), a gain of \(0.84\) percentage points, corresponding to roughly \(20\%\) of \Design's lower-tail advantage over HyperFeel.}
+\rev{This supports interpreting the global branch as a tail-stability component rather than a mean-accuracy component.}
+
+%Overall, the ablation shows that the main benefit of the method comes from combining the common and personal branches. The common branch captures prototype structure that can be shared across clients, while the personal branch preserves client-specific prototype information that should remain local. The global branch can still provide complementary benefit in some cases, but its role is secondary and more dataset-dependent.
+
+
+
+\paragraph{Dataset-dependent effect of rank allocation}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.85\linewidth]{fig/rank_allocation_crop.pdf}
+    \caption{Dataset-wise sensitivity to rank allocation.}
+    \label{fig:rank_allocation}
+\end{figure}
+
+\Figure~\ref{fig:rank_allocation} examines how strongly each dataset depends on the capacity of the \rev{shared-state side and the personal branch} in the proposed prototype decomposition.
+Rather than selecting the single best rank setting, we keep the training protocol fixed and vary only how the low-rank budget is divided across branches.
+The horizontal axis reports the mean accuracy change when the \rev{shared-state rank} is increased from 16 to 64, averaged over the other sweep settings, and the vertical axis reports the analogous mean accuracy change when the \rev{personal-branch rank} is increased from 16 to 64.
+In this controlled sweep, we use $\texttt{shared\_rank}\in\{16,32,48,64\}$, $\texttt{intersection\_ratio}\in\{0.25,0.5,0.75\}$, and $\texttt{personal\_rank}\in\{16,32,48,64\}$.
+
+This view shows three broad dataset regimes.
+ISOLET is the clearest case in which performance benefits mainly from a larger \rev{shared-state rank}: increasing the \rev{shared-state rank} gives about \(+2.46\%\), while increasing the \rev{personal-branch rank} gives almost no gain.
+FEMNIST, UCI-HAR, and WISDM show the same tendency more mildly, indicating that they also rely more on additional \rev{shared-state capacity} than on additional \rev{personal-branch capacity}.
+In contrast, Synthetic and NinaPro DB1 are driven more by the personal branch.
+Synthetic shows the strongest negative response to increased \rev{shared-state rank}, with a \rev{shared-state rank delta} of about \(-8.84\%\), which suggests that additional sharing is harmful.
+NinaPro DB1 is nearly insensitive to \rev{shared-state rank expansion} (\(-0.10\%\)) but responds strongly to a larger \rev{personal-branch rank} (\(+9.15\%\)).
+%PAMAP2 remains close to the origin and is comparatively flat, indicating weak sensitivity to either branch.
+
+This analysis shows that rank allocation can be used as a diagnostic of federated prototype structure.
+Datasets located farther to the right benefit more from increased \rev{shared-state capacity}, indicating stronger \rev{cross-client prototype alignment} in their prototype structure.
+Datasets located higher on the plot benefit more from increased personal-branch capacity, indicating that preserving \rev{personal structure} is more important for good performance.
+The overall pattern therefore shows that no single \rev{shared-state and personal-branch rank allocation} is uniformly optimal across all benchmarks.
+Instead, the appropriate prototype decomposition depends on the extent to which each dataset is governed by \rev{shared structure} or by \rev{personal variability}.
+
+
+% \paragraph{Energy Analysis}
+
+
+
+
+
+
+\paragraph{Tail-client recovery through prototype decomposition}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/t_sne_tail_client_crop.pdf}
+    \caption{t-SNE visualization of hard tail clients under natural heterogeneity.}
+    \label{fig:t_sne_tail}
+\end{figure}
+
+
+The clearest quantitative advantage of \Design appears in tail-client recovery.
+Under the natural split, the \texttt{10th-percentile client accuracy} on \textsc{WISDM} is $42.9\%$ for the full model, compared with $37.4\%$ for \textit{HyperFeel} and $5.4\%$ for global \textit{FedHDC}.
+On \textsc{NinaPro DB1}, the corresponding values are $70.5\%$, $54.5\%$, and $23.1\%$.
+The same ordering also appears in client-average accuracy: on \textsc{WISDM}, \texttt{final\_acc} is $57.2\%$, $49.6\%$, and $8.4\%$, while on \textsc{NinaPro DB1} it is $75.3\%$, $60.4\%$, and $30.5\%$, respectively.
+The worst-client metric shows a similar overall tendency, with a small exception on \textsc{WISDM}, where \textit{HyperFeel} is slightly higher than \Design on the single hardest client.
+Overall, these results indicate that \Design most consistently improves \emph{broad tail-client recovery} across low-performing clients.
+
+\Figure~\ref{fig:t_sne_tail} helps explain this result at the prototype level.
+In each panel, colored dots denote test samples from one hard client, and star markers denote the class prototypes produced by each method.
+\Design places these prototypes closer to the corresponding \rev{local sample clouds}, whereas global \textit{FedHDC} shows a larger prototype mismatch and \textit{HyperFeel} achieves only partial recovery.
+This pattern is consistent with the view that tail-client gains are associated with \rev{decomposing class-prototype memory into shared-state and local-state components}: the \rev{shared-state component} transfers what is consistent across clients, while the \rev{local-state component preserves personal structure} that would otherwise be overwritten by a single global prototype arrangement.
+
+
+\paragraph{\rev{Class-wise synchronization for lower-tail clients}}
+\rev{The lower-tail behavior above further motivates examining how these clients absorb shared-state updates.}
+\rev{For lower-tail clients, the mismatch is often class-dependent as some class prototypes require stronger cross-client correction while others are already well aligned with local data.}
+\rev{Within this tail-client setting, we ask whether class-wise weighting changes how strongly clients absorb the aggregated shared-state update.}
+\rev{We compare against a class-agnostic variant that keeps the same low-rank coefficient exchange but uses a uniform local class-wise update weight, \(\omega_{i,k}=1\), instead of the error-ratio-based weight in Eq.~\eqref{eq:update_weight}.}
+\rev{Thus, the communicated shared-state coefficients are unchanged, and only the client-side absorption of the aggregated shared-state update differs.}
+
+\rev{Table~\ref{tab:classwise_tail_shared_delta} reports the 10th-percentile client accuracy (P10) on \textsc{WISDM} and Synthetic after 25 federated rounds.}
+\rev{Compared with the class-agnostic variant, adaptive class-wise synchronization improves P10 accuracy by \(1.90\) percentage points on \textsc{WISDM} and \(3.10\) percentage points on Synthetic.}
+\rev{The error-ratio-based rule instead lets classes with larger local errors move more strongly, while leaving better-adapted classes less disturbed.}
+
+\begin{table}[t]
+\centering
+\caption{\rev{Class-wise synchronization for lower-tail clients.}}
+\label{tab:classwise_tail_shared_delta}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lccc}
+\toprule
+\rev{Dataset} & \multicolumn{2}{c}{\rev{P10 acc. (\%)}} & \rev{P10 gain} \\
+\cmidrule(lr){2-3}
+ & \rev{Class-wise} & \rev{Class-agnostic} &  \\
+\midrule
+\textsc{WISDM} & 45.30 & 43.40 & +1.90 p.p. \\
+Synthetic & 58.05 & 54.95 & +3.10 p.p. \\
+\bottomrule
+\end{tabular}%
+\vspace{0.2em}
+
+\parbox{\columnwidth}{\footnotesize\rev{P10 denotes the 10th-percentile client accuracy.}}
+\end{table}
+
+
+
+
+
+\paragraph{\rev{Round-budget behavior}}
+\rev{To characterize round-budget behavior, we evaluate the HD-based methods from 1 to 100 federated rounds and report representative checkpoints in Table~\ref{tab:checkpoint_trajectory}.}
+\rev{At the first checkpoint, \Design already reaches \(70.98\%\), compared with \(66.61\%\) for HyperFeel and \(51.13\%\) for FedHDC.}
+\rev{\Design then stays above the baselines throughout the round range, reaching \(73.42\%\) at 100 rounds.}
+\rev{This early gap is maintained across later checkpoints.}
+\rev{FedHDC remains nearly flat, while HyperFeel improves over FedHDC but does not change the relative ranking.}
+\rev{In this averaged checkpoint view, additional rounds mainly make modest changes, and the method ordering remains stable across checkpoints.}
+
+\begin{table}[!ht]
+\centering
+\caption{\rev{Checkpoint accuracy from 1 to 100 federated rounds (accuracy in \%).}}
+\label{tab:checkpoint_trajectory}
+
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lcccccc@{}}
+\toprule
+\rev{Method} & \multicolumn{6}{c}{\rev{Federated rounds}} \\
+\cmidrule(lr){2-7}
+ & \rev{1} & \rev{5} & \rev{10} & \rev{25} & \rev{50} & \rev{100} \\
+\midrule
+\rev{\Design} & \rev{70.98} & \rev{71.90} & \rev{72.31} & \rev{72.66} & \rev{72.98} & \rev{73.42} \\
+\rev{FedHDC} & \rev{51.13} & \rev{51.48} & \rev{51.78} & \rev{51.38} & \rev{51.26} & \rev{51.06} \\
+\rev{HyperFeel} & \rev{66.61} & \rev{68.13} & \rev{68.30} & \rev{68.28} & \rev{68.44} & \rev{68.41} \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+
+
+\paragraph{Effect of Participation Ratio on Convergence}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.95\linewidth]{fig/round_sweep_crop.pdf}
+    \caption{Effect of client participation ratio on convergence.}
+    \label{fig:round_sweep}
+\end{figure}
+
+
+Following the standard training setup, we keep all optimization and model settings fixed and vary only the client participation ratio in \(\{10\%, 25\%, 50\%, 100\%\}\).
+For this study only, we extend training to 100 communication rounds.
+\Figure~\ref{fig:round_sweep} shows that the participation ratio mainly affects how quickly and how smoothly \Design converges.
+Because the shared bases are computed once at bootstrap using all clients, every setting starts from the same initial prototype decomposition.
+The difference arises during federated refinement: when fewer clients participate in a round, the server estimates the \rev{shared-state update} from less information, which makes the round-wise update noisier; when more clients participate, the update is more stable and convergence is faster.
+
+
+To quantify this effect, let \(\Delta R_t\) denote the accuracy gap at round \(t\) between the \(100\%\) and \(10\%\) participation settings under the same communication-round budget.
+Both WISDM and FEMNIST show a clear early-round gap under sparse participation.
+The effect is strongest on WISDM, where \(\Delta R_{10}=+16.5\) points and a non-trivial gap remains at round 100 with \(\Delta R_{100}=+5.0\) points.
+FEMNIST shows a smaller but still visible early-round gap, with \(\Delta R_{10}=+5.2\) points, while the difference is nearly zero by round 100 with \(\Delta R_{100}\approx 0\).
+This suggests that, on FEMNIST, lower participation mainly delays convergence rather than changing the final mean accuracy.
+
+The results in Fig.~\ref{fig:round_sweep}(b), which reports the worst 10\% client accuracy, show the same pattern.
+On WISDM, higher participation yields a consistently stronger trajectory and a higher late-stage value, indicating faster recovery of weaker clients.
+On FEMNIST, the gap appears mainly in the early rounds and becomes small later.
+The remaining datasets follow the same trend with smaller magnitude.
+For example, UCI-HAR shows only \(\Delta R_{10}=+3.2\) and \(\Delta R_{100}=+0.5\), while several other datasets are nearly flat across participation levels.
+
+
+
+
+\paragraph{\rev{Late-joining clients}}
+\rev{A practical federated deployment may include clients that are absent during the bootstrap stage but become available later.}
+\rev{This setting tests whether the shared bootstrap coordinate system can also support clients that were not present when it was constructed.}
+\rev{We evaluate this case across all six benchmarks by holding out \(20\%\) of clients until after round 10 and then letting them join from the current shared state.}
+\rev{The late clients receive the shared bases and current shared-state coefficients, initialize their local state from their own data, and participate in the remaining rounds without rerunning the bootstrap stage for all clients.}
+\rev{Thus, the shared coordinate system is reused, while each late client still forms its local state from its own data.}
+
+\rev{As shown in Table~\ref{tab:late_joining}, the final mean accuracy differs from the full-start setting, where all clients participate from round 0, by at most \(1.03\) percentage points across the six benchmarks.}
+\rev{The largest absolute gap appears on Synthetic at \(1.03\) percentage points, while the other five benchmarks stay within \(0.50\) percentage points.}
+\rev{Therefore, in this late-joining setting, late clients can join after the bootstrap stage with little change in final average performance.}
+\rev{This result suggests that the bootstrap stage provides a reusable coordinate system, allowing late clients to initialize and adapt their local states without repeating the basis construction.}
+
+\begin{table}[!ht]
+\centering
+\caption{\rev{Late-joining client comparison. Accuracy values are final mean accuracy; p.p. denotes percentage points.}}
+\label{tab:late_joining}
+\small
+\begin{tabular}{lccc}
+\toprule
+\rev{Dataset} & \rev{Full (\%)} & \rev{Late (\%)} & \rev{Gap (Late--Full, p.p.)} \\
+\midrule
+\rev{UCI-HAR} & \rev{97.46} & \rev{97.58} & \rev{+0.12} \\
+\rev{ISOLET} & \rev{87.78} & \rev{87.70} & \rev{-0.08} \\
+\rev{FEMNIST} & \rev{68.47} & \rev{68.52} & \rev{+0.05} \\
+\rev{WISDM} & \rev{57.88} & \rev{58.38} & \rev{+0.50} \\
+\rev{NinaPro DB1} & \rev{75.14} & \rev{75.10} & \rev{-0.04} \\
+\rev{Synthetic} & \rev{73.34} & \rev{72.31} & \rev{-1.03} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+
+\paragraph{Diagnostics of Learned Prototype Structure}
+To understand how the proposed decomposition is utilized by the model, we perform a controlled diagnostic study that isolates the effect of branch allocation on the learned class-hypervector structure.
+Within a fixed learning setup, we vary only how each class hypervector is distributed across the common, global, and personal branches.
+In this controlled sweep, we use \(\texttt{shared\_rank}\in\{32,48,64\}\), \(\texttt{intersection\_ratio}\in\{0.25,0.75\}\), and \(\texttt{personal\_rank}\in\{32,48,64\}\).
+The \rev{shared-state rank is divided between the common and global branches} by the chosen intersection ratio, while the \rev{personal-branch rank} is changed independently.
+Thus, all compared models are trained under the same optimization setting, and only the branch allocation of the class hypervector is changed.
+
+
+We use two post-hoc diagnostics to read the learned prototype structure after training. 
+\rev{Component energy measures how the reconstructed prototype mass is distributed across the shared-state common component, the shared-state global component, and the local-state component.}
+Let
+\(M_{\mathrm{common}}=C B_c^\top\), \(M_{\mathrm{global}}=G B_g^\top\), and \rev{\(M_{\mathrm{local}}=\Delta B_c^\top + P B_p^\top\)},
+where \(C\), \(G\), \(\Delta\), and \(P\) denote the learned common, global, \rev{local common-basis correction}, and personal coefficients, respectively.
+The branch-energy share of branch \(b\in\{\mathrm{common},\mathrm{global},\rev{\mathrm{local}}\}\) is
+\begin{equation}
+e_b=
+\frac{\|M_b\|_F}
+{\|M_{\mathrm{common}}\|_F+\|M_{\mathrm{global}}\|_F+\|\rev{M_{\mathrm{local}}}\|_F}.
+\end{equation}
+\rev{Thus, component energy shows how much of the prototype mass is assigned to shared-state components versus the local-state component.}
+Effective rank measures how many directions remain active in the reconstructed full class-hypervector matrix \(M_i^{\mathrm{full}}\), and is computed as
+\begin{equation}
+r_{\mathrm{eff}}(M_i^{\mathrm{full}})=\frac{\|M_i^{\mathrm{full}}\|_F^2}{\|M_i^{\mathrm{full}}\|_2^2}.
+\end{equation}
+A larger effective rank indicates that the learned prototype uses a richer set of directions, whereas a value near \(1\) indicates that the class-hypervector space is concentrated in only a few directions.
+
+
+In FEMNIST, the learned class-hypervector representation places most of its energy in the common branch.
+Across all allocations, the common-energy share stays high at \(0.884\)--\(0.911\), the \rev{local-state energy share} stays low at \(0.084\)--\(0.094\), the global-energy share remains very small at \(0.004\)--\(0.023\), and the effective rank stays near \(1.00\).
+The best accuracy also appears when the \rev{shared-state rank} allocates more capacity to the common part and the personal rank remains small.
+This indicates that FEMNIST stores most useful prototype information in a strongly shared common branch, while additional \rev{local-state capacity} contributes little.
+
+In WISDM, the learned class-hypervector representation distributes its energy across both \rev{common components and the local-state component}.
+For the stronger settings, the common branch carries about \(0.444\)--\(0.471\) of the energy, the global branch about \(0.091\)--\(0.114\), and the \rev{local component} about \(0.438\)--\(0.442\).
+At the same time, the effective rank rises from \(3.03\) to \(3.52\).
+This indicates that WISDM benefits when the prototype uses both a larger common branch and a substantial \rev{local-state component}, rather than concentrating most of the prototype information in only one branch.
+
+
+In NinaPro DB1, the learned class-hypervector representation places most of its energy in the \rev{local-state component}.
+The \rev{local-state energy share} is the largest component in every setting at \(0.732\)--\(0.806\), while the common-energy share remains much smaller at \(0.131\)--\(0.194\) and the global-energy share stays at \(0.039\)--\(0.103\).
+The effective rank also reaches \(27.78\), much higher than in FEMNIST and WISDM.
+Accuracy follows the same direction, increasing as the personal rank becomes larger. 
+This indicates that NinaPro DB1 stores most useful prototype information in a rich \rev{local-state component rather than in the shared-state side}.
+
+% Across these datasets, the global branch does not carry much of the useful prototype information. Instead, most \rev{shared information} is placed in the common branch, while the \rev{local state preserves personal information}. This suggests that the global branch mainly serves as a \rev{server-coordinated shared reference} during training, rather than as the main source of performance gain.
+
+
+
+
+\section{Related Work}
+
+\subsection{Federated Hyperdimensional Computing}
+
+Hyperdimensional computing (HDC) has recently emerged as a practical direction for federated learning under edge constraints because it replaces heavy gradient-based training with high-dimensional encoding, prototype-style learning, and simple vector operations~\cite{Kleyko_2023, heddes2024hyperdimensional}.
+Early work such as FL-HDC~\cite{flhdc2021hsieh} showed that HDC can be integrated into the federated setting as a compact and hardware-friendly framework.
+More recent methods, including \textbf{FedHDC}~\cite{ergun2023federatedhyperdimensionalcomputing} and \textbf{HyperFeel}~\cite{li2024hyperfeel}, continue this direction by emphasizing lightweight local updates, prototype-based model exchange, and reduced communication cost.
+Resource-efficient federated HDC variants further reinforce this trend toward communication- and memory-conscious deployment~\cite{zeulin2023resourceefficientfederatedhyperdimensionalcomputing}.
+
+However, most existing federated HDC methods focus primarily on efficiency and lightweight federation.
+Under heterogeneous clients, the remaining issue is not only how to communicate less, but also how to decide what part of the prototype memory should be shared.
+Prior methods still largely treat prototype memory as a single shared object~\cite{ergun2023federatedhyperdimensionalcomputing,li2024hyperfeel}, which can weaken alignment to client-local structure when client distributions differ substantially.
+Our work addresses this gap by decomposing prototype memory into \rev{shared-state and local-state components}, rather than federating one holistic prototype space.
+
+\subsection{Personalized and Disentangled Federated Learning}
+
+A broader line of federated learning research addresses heterogeneity through personalization.
+Representative directions include personalization layers~\cite{arivazhagan2019federatedlearningpersonalizationlayers}, multi-task formulations~\cite{smith2018federatedmultitasklearning}, meta-learning-based personalization~\cite{fallah2020personalized}, and regularized personalized optimization such as pFedMe~\cite{dinh2022personalizedfederatedlearningmoreau}.
+Methods such as Ditto~\cite{li2021dittofairrobustfederated} further show that personalized local models can improve robustness and client-level performance when a single global model is not sufficient.
+
+A closely related direction is disentangled federated learning.
+DFL~\cite{luo2022disentangledfederatedlearningtackling} makes the shared/private distinction explicit by separating globally useful information from client-specific structure through disentangled branches.
+This is especially relevant to our setting because it frames heterogeneity not as a minor refinement, but as a structural problem of separating what should be aggregated from what should remain local.
+
+The main difference is that these personalized and disentangled FL methods are mostly developed for neural-network backbones, personalized heads, or feature-level branch separation~\cite{li2021dittofairrobustfederated,dinh2022personalizedfederatedlearningmoreau,luo2022disentangledfederatedlearningtackling}.
+In HDC, however, the main learning object is not a layered feature hierarchy but a class prototype memory distributed across high-dimensional coordinates.
+Our work brings the \rev{principle of separating aggregatable and local information} into this prototype-centric HDC setting by decomposing the memory itself into \rev{shared and local states with role-specific branches}.
+
+
+
+% \section{Discussion}
+% robustness will go bad (with low rank coefficients, one variance will give much effect)
+    % about the privacy
+
+
+
+
+\section{Conclusion}
+
+We presented \Design, a personalized federated hyperdimensional computing framework that replaces holistic prototype sharing with a \rev{shared--local state decomposition of prototype memory}.
+The key idea is to treat client prototype memory not as a single object to be either fully shared or fully \rev{local}, but as \rev{a representation organized into common, global, and personal branches, with coefficients partitioned into shared and local states}.
+This enables clients to preserve local geometry while still benefiting from cross-client regularization through low-rank \rev{shared-state synchronization}.
+
+Across \rev{six} federated benchmarks, \Design improved mean accuracy by $+4.3$\% points over HyperFeel and $+21.2$\% points over FedHDC.
+Beyond accuracy, the method also delivered clear systems benefits on a reduced synthetic benchmark, making \rev{recurring} client rounds about $3.0\times$ faster than prior federated HDC baselines while reducing uploaded payload by $62.5\times$.
+\rev{Including the one-time bootstrap, the 25-round runtime remains \(1.36\)--\(1.37\times\) faster than the HDC baselines on the same controlled benchmark.} These results show that personalization in federated HDC should be expressed directly at the prototype-memory level, rather than borrowed indirectly from neural multi-branch designs.
+
+%More broadly, the results suggest that low-rank shared--personal decomposition is not only an efficient parameterization, but also a useful structural principle for federated HDC under heterogeneous clients. 
+% This paper presented \Design, a personalized federated learning framework for hyperdimensional computing that separates shareable and client-specific prototype structure. Rather than aggregating full prototype memories across heterogeneous clients, \Design performs collaboration in a low-rank shared coordinate space while preserving personal components locally. This design makes personalization explicit at the prototype-memory level, which is the natural learning object in HDC, and retains the efficiency advantages that make HDC attractive for edge federated learning. Across seven benchmarks, \Design consistently improves accuracy over prior federated HDC baselines, and on FEMNIST it substantially reduces per-round uplink cost. These results show that, in federated HDC, the key issue is not only how to communicate efficiently, but also how to determine what should be shared and what should remain local.
+
+
+
+% \section*{Acknowledgments}
+% This should be a simple paragraph before the References to thank those individuals and institutions who have supported your work on this article.
+
+\bibliographystyle{IEEEtran}
+\bibliography{reference}
+
+\vfill
+
+\end{document}

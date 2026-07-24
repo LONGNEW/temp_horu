@@ -12,7 +12,7 @@ THREADS="${THREADS:-1}"
 mkdir -p "${DATA_ROOT}" "${RESULTS_ROOT}"
 
 cd "${ROOT}"
-python3 artifact/scripts/run_table_reproduction.py \
+python3 artifact/scripts/run_tables123.py \
   --data-root "${DATA_ROOT}" \
   --output-dir "${OUTPUT_DIR}" \
   --warmup "${WARMUP}" \

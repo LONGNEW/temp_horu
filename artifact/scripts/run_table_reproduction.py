@@ -1,44 +1,35 @@
 #!/usr/bin/env python3
-"""Prepare the controlled fixture and reproduce Tables I, II, and III."""
+"""Prepare the controlled-systems fixture and reproduce Tables I, II, and III."""
 
 from __future__ import annotations
 
 import argparse
+import csv
+import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
-
-def _run(command: list[str], env: dict[str, str]) -> int:
-    print("Command:\n" + " ".join(command))
-    return subprocess.run(command, cwd=REPO_ROOT, env=env, check=False).returncode
+from horu_artifact.datasets.controlled_systems import prepare_data
+from horu_artifact.experiments.tables123 import reproduce_tables
 
 
 def _prepare_command(data_root: Path) -> list[str]:
-    return [
-        sys.executable,
-        "-m",
-        "horu_artifact",
-        "prepare-data",
-        "controlled-systems",
-        "--data-root",
-        str(data_root),
-    ]
+    return ["prepare-controlled-systems", "--data-root", str(data_root)]
 
 
 def _reproduce_command(data_root: Path, output_dir: Path, warmup: int, repeats: int, threads: int) -> list[str]:
     return [
-        sys.executable,
-        "-m",
-        "horu_artifact",
-        "reproduce-tables",
+        "reproduce-tables123",
         "--data-root",
         str(data_root),
-        "--output",
+        "--output-dir",
         str(output_dir),
         "--warmup",
         str(warmup),
@@ -47,6 +38,40 @@ def _reproduce_command(data_root: Path, output_dir: Path, warmup: int, repeats: 
         "--threads",
         str(threads),
     ]
+
+
+def _print_csv(path: Path) -> None:
+    print(f"\n== {path.name} ==")
+    with path.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    if not rows:
+        print("(empty)")
+        return
+    headers = list(rows[0].keys())
+    widths = {
+        header: max(len(header), *(len(str(row.get(header, ""))) for row in rows))
+        for header in headers
+    }
+    print(" | ".join(header.ljust(widths[header]) for header in headers))
+    print("-+-".join("-" * widths[header] for header in headers))
+    for row in rows:
+        print(" | ".join(str(row.get(header, "")).ljust(widths[header]) for header in headers))
+
+
+def _print_result_summary(output_dir: Path) -> None:
+    print(f"\nOutputs written to: {output_dir}")
+    for name in ("table1.csv", "table2.csv", "table3.csv", "raw_timings.csv", "environment.json", "result.json"):
+        path = output_dir / name
+        if path.exists():
+            print(f"- {path}")
+    result_path = output_dir / "result.json"
+    if result_path.exists():
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+        print(f"\nStatus: {payload.get('status', 'unknown')}")
+    for name in ("table1.csv", "table2.csv", "table3.csv"):
+        path = output_dir / name
+        if path.exists():
+            _print_csv(path)
 
 
 def main() -> int:
@@ -58,13 +83,16 @@ def main() -> int:
     parser.add_argument("--threads", type=int, default=1)
     args = parser.parse_args()
 
-    env = {"PYTHONPATH": str(REPO_ROOT / "src"), **dict(os.environ)}
-    prepare = _prepare_command(args.data_root)
-    if _run(prepare, env) != 0:
-        return 2
+    print("Command:\n" + " ".join(_prepare_command(args.data_root)))
+    prepare_data(args.data_root)
 
-    reproduce = _reproduce_command(args.data_root, args.output_dir, args.warmup, args.repeats, args.threads)
-    return _run(reproduce, env)
+    print(
+        "Command:\n"
+        + " ".join(_reproduce_command(args.data_root, args.output_dir, args.warmup, args.repeats, args.threads))
+    )
+    reproduce_tables(args.data_root, args.output_dir, warmup=args.warmup, repeats=args.repeats, threads=args.threads)
+    _print_result_summary(args.output_dir)
+    return 0
 
 
 if __name__ == "__main__":

@@ -11,35 +11,44 @@ from pathlib import Path
 import torch
 
 from experiment_common import build_dataset_adapter, resolve_device
-from hardware_energy import RunEnergyMonitor
-from our_hd import FederatedRunner
-from our_hd.federated import ClientState
-from our_nn import NNFederatedRunner
-from run_seven_dataset_benchmark import (
+from hd_reconstruction_runtime import (
     HD_METHODS,
-    NN_METHODS,
-    OPTIONAL_HD_METHODS,
-    apply_family_dataset_overrides,
+    RECONSTRUCTION_DATASETS,
     apply_seed_to_dataset,
     build_config,
     build_hd_method,
-    build_nn_method,
     load_dataset_specs,
     maybe_cap_large_dataset_train_data,
     mean_std,
     set_seed,
 )
+from our_hd import FederatedRunner
+from our_hd.federated import ClientState
+
+DEFAULT_DATASETS = list(RECONSTRUCTION_DATASETS)
+OPTIONAL_HD_METHODS: list[str] = []
+NN_METHODS: list[str] = []
 
 
-DEFAULT_DATASETS = [
-    "uci_har",
-    "isolet_raw",
-    "femnist",
-    "pamap2",
-    "wisdm",
-    "synthetic",
-    "ninapro_db1",
-]
+class RunEnergyMonitor:
+    def __init__(self, *, device: torch.device, enabled: bool, sample_interval_sec: float) -> None:
+        self.device = device
+        self.enabled = enabled
+        self.sample_interval_sec = sample_interval_sec
+
+    def __enter__(self) -> "RunEnergyMonitor":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+    def stop(self, *, elapsed_seconds: float) -> dict[str, float | None]:
+        _ = elapsed_seconds
+        return {
+            "gpu_energy_j": None,
+            "gpu_avg_power_w": None,
+            "cpu_energy_j": None,
+        }
 
 INFERENCE_MODE_TO_METRIC: dict[str, str] = {
     "fused": "mean_personalized_accuracy",
@@ -116,8 +125,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--methods",
         nargs="+",
-        default=["horu_hd"],
-        choices=[*HD_METHODS, *OPTIONAL_HD_METHODS, *NN_METHODS],
+        default=list(HD_METHODS),
+        choices=list(HD_METHODS),
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--seeds", nargs="+", type=int, default=[13])
@@ -884,7 +893,7 @@ def main() -> None:
     inference_only = bool(args.inference_only)
     required_modes = ["fused"] if not inference_only else list(args.inference_modes)
     if inference_only:
-        unsupported = set(args.methods) - set(HD_METHODS) - set(OPTIONAL_HD_METHODS)
+        unsupported = set(args.methods) - set(HD_METHODS)
         if unsupported:
             raise ValueError(
                 f"inference-only supports only HD methods, got unsupported methods: {sorted(unsupported)}"
@@ -971,8 +980,7 @@ def main() -> None:
 
             set_seed(seed)
             seeded_dataset = apply_seed_to_dataset(dataset_spec, seed)
-            family_cache: dict[str, dict[str, object]] = {}
-            family_cache_records: dict[str, dict[str, int] | None] = {}
+            cached_clients: dict[str, object] | None = None
 
             for method_name in run_config["methods"]:
                 if not inference_only and (int(seed), str(method_name)) in completed_pairs:
@@ -981,13 +989,9 @@ def main() -> None:
                         f"phase=skip source=resume"
                     )
                     continue
-                if inference_only and method_name in NN_METHODS:
-                    continue
-
-                cfg_family = "nn" if method_name in NN_METHODS else "hd"
-                if cfg_family not in family_cache:
-                    effective_dataset = apply_family_dataset_overrides(seeded_dataset, family=cfg_family)
-                    adapter = build_dataset_adapter({"dataset": effective_dataset}, torch.device("cpu"))
+                cfg_family = "hd"
+                if cached_clients is None:
+                    adapter = build_dataset_adapter({"dataset": seeded_dataset}, torch.device("cpu"))
                     clients = adapter.load_clients()
                     clients, sampling_info = maybe_cap_large_dataset_train_data(
                         clients,
@@ -995,13 +999,12 @@ def main() -> None:
                         total_cap=args.large_dataset_train_cap,
                         seed=(int(seed) * 7919) + 29,
                     )
-                    family_cache[cfg_family] = {
+                    cached_clients = {
                         "clients": clients,
                         "input_dim": int(clients[0].x_train.shape[1]),
                         "num_classes": int(adapter.num_classes()),
                         "chance_accuracy": float(1.0 / float(adapter.num_classes())),
                     }
-                    family_cache_records[cfg_family] = sampling_info
                     if dataset_num_classes is None:
                         dataset_num_classes = int(adapter.num_classes())
                     if sampling_info.get("applied"):
@@ -1010,15 +1013,14 @@ def main() -> None:
                             {"seed": int(seed), **sampling_info},
                         )
 
-                cached = family_cache[cfg_family]
+                cached = cached_clients
                 clients = cached["clients"]
                 input_dim = int(cached["input_dim"])
                 num_classes = int(cached["num_classes"])
                 chance_accuracy = float(cached["chance_accuracy"])
 
                 if not inference_only:
-                    effective_dataset = apply_family_dataset_overrides(seeded_dataset, family=cfg_family)
-                    cfg_family, cfg = build_config(effective_dataset, method_name, args)
+                    cfg = build_config(seeded_dataset, method_name, args)
                     set_seed(seed)
                     monitor = RunEnergyMonitor(
                         device=device,
@@ -1027,29 +1029,20 @@ def main() -> None:
                     )
                     start = time.perf_counter()
                     with monitor:
-                        if cfg_family == "hd":
-                            method, metric_key = build_hd_method(cfg, input_dim, num_classes, device)
-                            result = FederatedRunner(
-                                method=method,
-                                rounds=max_round,
-                                client_participation=float(cfg["train"].get("client_participation", 1.0)),
-                                seed=seed,
-                            ).run(clients, snapshot_rounds=(set(round_checkpoints) if save_round_states else None))
-                        else:
-                            method, metric_key = build_nn_method(cfg, input_dim, num_classes, device)
-                            result = NNFederatedRunner(
-                                method=method,
-                                rounds=max_round,
-                                client_participation=float(cfg["train"].get("client_participation", 1.0)),
-                                seed=seed,
-                            ).run(clients)
+                        method, metric_key = build_hd_method(cfg, input_dim, num_classes, device)
+                        result = FederatedRunner(
+                            method=method,
+                            rounds=max_round,
+                            client_participation=float(cfg["train"].get("client_participation", 1.0)),
+                            seed=seed,
+                        ).run(clients, snapshot_rounds=(set(round_checkpoints) if save_round_states else None))
                     if device.type == "cuda":
                         torch.cuda.synchronize(device)
                     runtime_seconds = time.perf_counter() - start
                     energy_metrics = monitor.stop(elapsed_seconds=runtime_seconds)
 
                     state_path: str | None = None
-                    if save_round_states and cfg_family == "hd":
+                    if save_round_states:
                         state_path_obj = _checkpoint_state_path(
                             base_dir=Path(args.checkpoint_state_dir),
                             dataset_name=dataset_name,

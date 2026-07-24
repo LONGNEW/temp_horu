@@ -113,6 +113,21 @@ def main() -> int:
         if completed.returncode != 0:
             return completed.returncode
         reports.extend(["--report", f"{dataset}={dataset_output / f'{dataset}.json'}"])
+    if len(selected) != len(protocol["datasets"]):
+        partial_summary = {
+            "status": "PARTIAL_DATASET_RUN",
+            "selected_datasets": selected,
+            "manifest": str(MANIFEST_PATH),
+            "report_paths": {
+                dataset: str(args.output_dir / dataset / f"{dataset}.json")
+                for dataset in selected
+            },
+        }
+        (args.output_dir / "summary.json").write_text(
+            json.dumps(partial_summary, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return 0
     summary_command = [
         sys.executable,
         str(SUMMARY),

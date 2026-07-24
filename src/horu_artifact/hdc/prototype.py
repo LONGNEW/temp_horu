@@ -1,5 +1,7 @@
 """Class prototype memory for nonlinear HDC."""
 
+from __future__ import annotations
+
 import torch
 import torch.nn.functional as F
 
@@ -15,8 +17,13 @@ class PrototypeMemory:
         self.memory = memory
 
     @classmethod
-    def initialize(cls, encoded: torch.Tensor, labels: torch.Tensor, num_classes: int, normalize_rows: bool = True) -> "PrototypeMemory":
-        """Average encoded training samples per class, optionally row-normalizing nonzero rows."""
+    def initialize(
+        cls,
+        encoded: torch.Tensor,
+        labels: torch.Tensor,
+        num_classes: int,
+        normalize_rows: bool = True,
+    ) -> "PrototypeMemory":
         _validate_batch(encoded, labels, num_classes)
         memory = torch.zeros((num_classes, encoded.shape[1]), dtype=torch.float32, device=encoded.device)
         for label in range(num_classes):
@@ -30,11 +37,9 @@ class PrototypeMemory:
 
     @property
     def num_classes(self) -> int:
-        """Return class count."""
         return self.memory.shape[0]
 
     def predict(self, encoded: torch.Tensor, similarity: str = "cosine") -> torch.Tensor:
-        """Return cosine or dot-product class predictions; zero rows score ``-inf``."""
         if encoded.ndim != 2 or encoded.shape[0] == 0 or encoded.shape[1] != self.memory.shape[1]:
             raise ValueError("encoded must be a non-empty batch matching memory dimension")
         if encoded.device != self.memory.device:
@@ -55,8 +60,14 @@ class PrototypeMemory:
         scores[:, norms == 0] = -torch.inf
         return scores.argmax(dim=1)
 
-    def update(self, encoded: torch.Tensor, labels: torch.Tensor, learning_rate: float, similarity: str = "cosine", normalize_hypervectors: bool = False) -> int:
-        """Apply unnormalized push-pull updates for misclassified samples only."""
+    def update(
+        self,
+        encoded: torch.Tensor,
+        labels: torch.Tensor,
+        learning_rate: float,
+        similarity: str = "cosine",
+        normalize_hypervectors: bool = False,
+    ) -> int:
         _validate_batch(encoded, labels, self.num_classes)
         if encoded.shape[1] != self.memory.shape[1] or encoded.device != self.memory.device:
             raise ValueError("encoded batch does not match memory shape or device")
@@ -64,27 +75,30 @@ class PrototypeMemory:
             raise ValueError("learning_rate must be positive")
         updates = 0
         for index in range(encoded.shape[0]):
-            # A push-pull update changes the classifier immediately.  The next
-            # sample must therefore be predicted against the current memory,
-            # not against a stale batch-level prediction.
-            predicted = int(self.predict(encoded[index:index + 1], similarity)[0])
+            predicted = int(self.predict(encoded[index : index + 1], similarity)[0])
             actual = int(labels[index])
             if predicted != actual:
                 update_vector = encoded[index]
                 if normalize_hypervectors:
-                    update_vector = F.normalize(update_vector.unsqueeze(0), p=2, dim=1, eps=torch.finfo(encoded.dtype).eps)[0]
+                    update_vector = F.normalize(
+                        update_vector.unsqueeze(0),
+                        p=2,
+                        dim=1,
+                        eps=torch.finfo(encoded.dtype).eps,
+                    )[0]
                 self.memory[actual].add_(update_vector, alpha=learning_rate)
                 self.memory[predicted].add_(update_vector, alpha=-learning_rate)
                 updates += 1
         return updates
 
-    def update_hdzoo_batch(self, encoded: torch.Tensor, labels: torch.Tensor, learning_rate: float, similarity: str = "dot", normalize_hypervectors: bool = False) -> int:
-        """Apply HDZoo-style batch-aggregated push-pull retraining.
-
-        Predictions are fixed for the complete batch. All misclassified vectors
-        are summed by true and predicted class, then applied in one update.
-        Initialization remains the caller's responsibility.
-        """
+    def update_hdzoo_batch(
+        self,
+        encoded: torch.Tensor,
+        labels: torch.Tensor,
+        learning_rate: float,
+        similarity: str = "dot",
+        normalize_hypervectors: bool = False,
+    ) -> int:
         _validate_batch(encoded, labels, self.num_classes)
         if encoded.shape[1] != self.memory.shape[1] or encoded.device != self.memory.device:
             raise ValueError("encoded batch does not match memory shape or device")

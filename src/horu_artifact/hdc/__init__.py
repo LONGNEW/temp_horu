@@ -1,6 +1,5 @@
-"""Hyperdimensional encoding and prototype operations."""
+"""Minimal HDC helpers retained for the controlled-systems artifact path."""
 
-from .encoder import NonlinearEncoder, make_projection
 from .prototype import PrototypeMemory
 
-__all__ = ["NonlinearEncoder", "PrototypeMemory", "make_projection"]
+__all__ = ["PrototypeMemory"]

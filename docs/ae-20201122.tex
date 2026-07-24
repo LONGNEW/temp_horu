@@ -1,0 +1,245 @@
+% LaTeX template for Artifact Evaluation V20201122
+%
+% Prepared by 
+% * Grigori Fursin (cTuning foundation, France) 2014-2020
+% * Bruce Childers (University of Pittsburgh, USA) 2014
+%
+% See examples of this Artifact Appendix in
+%  * SC'17 paper: https://dl.acm.org/citation.cfm?id=3126948
+%  * CGO'17 paper: https://www.cl.cam.ac.uk/~sa614/papers/Software-Prefetching-CGO2017.pdf
+%  * ACM ReQuEST-ASPLOS'18 paper: https://dl.acm.org/citation.cfm?doid=3229762.3229763
+%
+% (C)opyright 2014-2020
+%
+% CC BY 4.0 license
+%
+
+\documentclass{sigplanconf}
+
+\usepackage{hyperref}
+
+\begin{document}
+
+\special{papersize=8.5in,11in}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% When adding this appendix to your paper, 
+% please remove above part
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\appendix
+\section{Artifact Appendix}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Abstract}
+
+This artifact supports two experiments for the paper
+``Personalized Federated Hyperdimensional Computing via Shared--Personal
+Prototype Memory Decomposition'': (1) controlled-system reproduction of
+Tables I, II, and III, and (2) a six-dataset benchmark comparing HoRU,
+HyperFeel, and FedHDC. The table experiment generates its controlled fixture
+locally and produces the latency and payload tables. The benchmark experiment
+acquires public inputs, builds local caches, runs the shared protocol, and
+writes validation reports.
+
+\subsection{Artifact check-list (meta-information)}
+
+{\em Obligatory. Use just a few informal keywords in all fields applicable to your artifacts
+and remove the rest. This information is needed to find appropriate reviewers and gradually 
+unify artifact meta information in Digital Libraries.}
+
+{\small
+\begin{itemize}
+  \item {\bf Algorithm: } personalized federated HDC, low-rank shared/personal prototype decomposition
+  \item {\bf Program: } Python package and command-line workflows
+  \item {\bf Compilation: } none; interpreted Python
+  \item {\bf Binary: } optional CUDA-enabled PyTorch
+  \item {\bf Model: } prototype memories and low-rank bases built at run time
+  \item {\bf Data set: } controlled-system fixture, UCI-HAR, ISOLET, FEMNIST, WISDM, LEAF Synthetic, NinaPro DB1
+  \item {\bf Run-time environment: } Python 3.11+, Linux
+  \item {\bf Hardware: } CPU for Tables I--III; one CUDA GPU recommended for the full benchmark
+  \item {\bf Execution: } command line
+  \item {\bf Metrics: } bootstrap latency, recurring-round latency, upload payload, round-25 accuracy
+  \item {\bf Output: } CSV, JSON, Markdown reports
+  \item {\bf Experiments: } table reproduction; six-dataset benchmark and validation
+  \item {\bf How much disk space required (approximately)?: } table workflow under 1 GB; benchmark inputs and outputs require tens of GB
+  \item {\bf How much time is needed to prepare workflow (approximately)?: } a few minutes for the Python environment; dataset acquisition depends on downloads
+  \item {\bf How much time is needed to complete experiments (approximately)?: } tables in minutes; quick benchmark in tens of minutes; full benchmark is GPU-dependent and longer
+  \item {\bf Publicly available?: } yes
+  \item {\bf Code licenses (if publicly available)?: } repository terms
+  \item {\bf Data licenses (if publicly available)?: } upstream dataset licenses
+  \item {\bf Workflow framework used?: } none
+  \item {\bf Archived (provide DOI)?: } none assigned in this repository snapshot
+\end{itemize}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Description}
+
+\subsubsection{How to access}
+
+The repository root contains the artifact. The active code paths are:
+\begin{itemize}
+  \item \texttt{src/horu\_artifact/experiments/tables123.py} for Tables I--III;
+  \item \texttt{artifact/scripts/run\_cuda\_reconstruction\_suite.py} for the
+        six-dataset benchmark;
+  \item \texttt{reference\_results/cuda\_suite/} for immutable
+        reference reports;
+  \item \texttt{configs/accuracy\_full.yaml},
+        \texttt{configs/accuracy\_quick.yaml}, and
+        \texttt{configs/datasets.yaml} for benchmark configuration.
+\end{itemize}
+
+\subsubsection{Hardware dependencies}
+
+The table workflow is CPU-only. The six-dataset reference reports were
+generated with CUDA; reproducing the full benchmark is practical with one
+CUDA-capable GPU. The code still runs on CPU, but the full benchmark may be
+slow.
+
+\subsubsection{Software dependencies}
+
+Python 3.11 or newer is required. The package dependencies are
+\texttt{torch >= 2.2}, \texttt{PyYAML >= 6.0}, and \texttt{scipy >= 1.11}.
+Tests use \texttt{pytest >= 8}.
+
+\subsubsection{Data sets}
+
+Tables I--III use a generated controlled-system fixture and do not require an
+external dataset. The benchmark uses six public datasets with pinned
+input-acquisition scripts: UCI-HAR, ISOLET, FEMNIST, WISDM, Synthetic, and
+NinaPro DB1. Short dataset notes are under \texttt{docs/datasets/}.
+
+\subsubsection{Models}
+
+No pretrained neural network is required. The artifact constructs prototype
+memories, shared bases, and personal bases during execution.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Installation}
+
+Create a Python environment and install the package:
+
+\begin{verbatim}
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[test]'
+\end{verbatim}
+
+For CUDA benchmark runs, install the appropriate CUDA-enabled PyTorch wheel
+before the editable install.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Experiment workflow}
+
+\paragraph{Tables I, II, and III.}
+Generate the controlled-system fixture, then run the table workflow:
+
+\begin{verbatim}
+horu-artifact prepare-data controlled-systems --data-root data
+horu-artifact reproduce-tables \
+  --data-root data \
+  --output results/table_reproduction \
+  --warmup 5 \
+  --repeats 30 \
+  --threads 1
+\end{verbatim}
+
+\paragraph{Six-dataset benchmark.}
+First acquire the public inputs:
+
+\begin{verbatim}
+python3 artifact/scripts/acquire_uci_har_prototype.py \
+  --source-root /data/horu/uci_har \
+  --archive /data/downloads/UCI_HAR_Dataset.zip
+
+python3 artifact/scripts/acquire_isolet_prototype.py \
+  --source-root /data/horu/isolet \
+  --download-dir /data/downloads/isolet
+
+python3 artifact/scripts/prepare_femnist_reconstruction.py \
+  --source-root /data/horu/femnist
+
+python3 artifact/scripts/acquire_wisdm_reconstruction.py \
+  --source-root /data/horu/wisdm \
+  --outer-archive /data/downloads/WISDM.zip
+
+python3 artifact/scripts/prepare_synthetic_reconstruction.py \
+  --source-root /data/horu/synthetic
+
+python3 artifact/scripts/acquire_ninapro_db1_reconstruction.py \
+  --source-root /data/horu/ninapro \
+  --download-dir /data/downloads/ninapro
+\end{verbatim}
+
+Then run the benchmark:
+
+\begin{verbatim}
+python3 artifact/scripts/run_cuda_reconstruction_suite.py \
+  --uci-har-source-root /data/horu/uci_har \
+  --isolet-raw-source-root /data/horu/isolet \
+  --femnist-source-root /data/horu/femnist \
+  --wisdm-source-root /data/horu/wisdm \
+  --synthetic-source-root /data/horu/synthetic \
+  --ninapro-db1-source-root /data/horu/ninapro \
+  --output-dir results_reconstruction/cuda_suite
+\end{verbatim}
+
+This command builds local caches, runs the shared protocol, and writes the
+validation report.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Evaluation and expected results}
+
+\paragraph{Tables I, II, and III.}
+The table workflow must generate:
+\begin{itemize}
+  \item \texttt{table1.csv}
+  \item \texttt{table2.csv}
+  \item \texttt{table3.csv}
+  \item \texttt{raw\_timings.csv}
+  \item \texttt{environment.json}
+  \item \texttt{result.json}
+\end{itemize}
+The expected qualitative outcome is that HoRU shows lower recurring-round
+latency and much smaller upload payload than FedHDC and HyperFeel.
+
+\paragraph{Six-dataset benchmark.}
+The immutable reference report is under
+\texttt{reference\_results/cuda\_suite/}. It can be checked with:
+
+\begin{verbatim}
+python3 artifact/scripts/verify_reconstruction_suite.py \
+  --manifest artifact/manifests/reconstruction_cuda_suite_v1.json \
+  --suite-output reference_results/cuda_suite
+\end{verbatim}
+
+The expected round-25 accuracies in the committed reference reports are:
+\begin{itemize}
+  \item UCI-HAR: HoRU 97.66, HyperFeel 98.08, FedHDC 95.25
+  \item ISOLET: HoRU 88.14, HyperFeel 90.59, FedHDC 93.85
+  \item FEMNIST: HoRU 68.54, HyperFeel 67.78, FedHDC 57.26
+  \item WISDM: HoRU 56.69, HyperFeel 51.11, FedHDC 6.95
+  \item Synthetic: HoRU 78.00, HyperFeel 73.19, FedHDC 71.09
+  \item NinaPro DB1: HoRU 75.68, HyperFeel 61.48, FedHDC 30.86
+  \item Unweighted mean: HoRU 77.45, HyperFeel 73.71, FedHDC 59.21
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Experiment customization}
+
+The main benchmark configuration files are:
+\begin{itemize}
+  \item \texttt{configs/accuracy\_quick.yaml}
+  \item \texttt{configs/accuracy\_full.yaml}
+  \item \texttt{configs/datasets.yaml}
+\end{itemize}
+Reviewers can switch between quick and full benchmark settings, change output
+directories, or run only the table workflow if GPU resources are unavailable.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% When adding this appendix to your paper, 
+% please remove below part
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\end{document}

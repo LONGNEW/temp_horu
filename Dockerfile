@@ -1,4 +1,4 @@
-FROM python:3.11.9-slim-bookworm
+FROM pytorch/pytorch:2.4.0-cuda12.4-cudnn9-runtime
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
@@ -19,7 +19,6 @@ COPY . /artifact
 
 RUN python -m pip install --upgrade pip setuptools wheel && \
     python -m pip install \
-      torch==2.5.1 \
       PyYAML==6.0.2 \
       scipy==1.14.1 \
       pytest==8.3.3 && \
