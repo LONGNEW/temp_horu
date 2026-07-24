@@ -43,12 +43,40 @@ def main(argv: list[str] | None = None) -> None:
             prepared = {}
             for name in names:
                 if name == "ucihar":
-                    prepare_data(args.data_root); data = prepare_ucihar_federated(args.data_root, int(raw.get("seed", 0)))
-                elif name == "isolet": data = prepare_isolet(args.data_root, sources[name], int(raw.get("seed", 0)))
-                elif name == "femnist": data = prepare_femnist(args.data_root, sources[name])
+                    if name in sources:
+                        data = prepare_ucihar_federated(
+                            args.data_root,
+                            int(raw.get("seed", 42)),
+                            sources[name],
+                            bool(raw.get("ucihar_preserve_original_split", True)),
+                        )
+                    else:
+                        prepare_data(args.data_root)
+                        data = prepare_ucihar_federated(args.data_root, int(raw.get("seed", 42)))
+                elif name == "isolet":
+                    data = prepare_isolet(
+                        args.data_root,
+                        sources[name],
+                        int(raw.get("seed", 42)),
+                        float(raw.get("isolet_alpha", 5.0)),
+                        bool(raw.get("isolet_preserve_original_split", False)),
+                    )
+                elif name == "femnist":
+                    data = prepare_femnist(
+                        args.data_root,
+                        sources[name],
+                        int(raw.get("femnist_selection_seed", raw.get("seed", 42))),
+                        int(raw.get("femnist_limit_clients", 200)),
+                    )
                 elif name == "wisdm": data = prepare_wisdm(args.data_root, sources[name], int(raw.get("seed", 0)), raw.get("wisdm_client_ids"), bool(raw.get("wisdm_recover_missing_from_raw", False)))
-                elif name == "ninapro": data = prepare_ninapro(args.data_root, sources[name], int(raw.get("seed", 0)))
-                elif name == "synthetic": data = prepare_synthetic(args.data_root, int(raw.get("seed", 0)))
+                elif name == "ninapro": data = prepare_ninapro(args.data_root, sources[name], int(raw.get("seed", 42)))
+                elif name == "synthetic":
+                    data = prepare_synthetic(
+                        args.data_root,
+                        sources[name],
+                        int(raw.get("seed", 42)),
+                        int(raw.get("synthetic_limit_clients", 30)),
+                    )
                 else:
                     data = prepare_controlled_systems(args.data_root)
                     prepared[name] = {

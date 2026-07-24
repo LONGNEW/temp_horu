@@ -1,46 +1,74 @@
-"""LEAF FEMNIST natural-client cache builder."""
+"""Legacy LEAF FEMNIST loader used by the 26CASES HoRU code path."""
 from __future__ import annotations
-import hashlib
+
 import json
 from pathlib import Path
-import torch
-from .federated import ClientData, FederatedDataset, write_cache
+
+import numpy as np
+
+from .federated import FederatedDataset, write_cache
+from .legacy_contract import build_explicit_clients, compact_explicit_split_labels, resolve_normalization_mode, resolve_split_root, select_records
 
 
-def _shards(directory: Path) -> dict[str, dict]:
-    output: dict[str, dict] = {}
-    for path in sorted(directory.glob("*.json")):
+def _extract_xy(entry: dict) -> tuple[np.ndarray, np.ndarray]:
+    x = np.asarray(entry["x"], dtype=np.float32)
+    y = np.asarray(entry["y"], dtype=np.int64)
+    if x.ndim > 2:
+        x = x.reshape(x.shape[0], -1)
+    return x, y
+
+
+def _load_users(split_dir: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    users: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for path in sorted(split_dir.glob("*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
-        for writer, data in payload.get("user_data", {}).items():
-            if writer in output: raise ValueError(f"duplicate FEMNIST writer {writer}")
-            output[writer] = data
-    if not output: raise FileNotFoundError(f"no LEAF FEMNIST JSON shards in {directory}")
-    return output
+        entries = payload.get("user_data", {})
+        for user in [str(value) for value in payload.get("users", [])]:
+            if user in entries:
+                users[user] = _extract_xy(entries[user])
+    return users
 
 
-def _tensors(data: dict, ids: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    x = torch.tensor(data["x"], dtype=torch.float32).reshape(-1, 784) / 255.0
-    y = torch.tensor(data["y"], dtype=torch.long)
-    if x.shape[0] != y.numel(): raise ValueError("FEMNIST x/y count mismatch")
-    return torch.nn.functional.normalize(x, p=2, dim=1), y, ids
-
-
-def prepare_data(data_root: str | Path, source_root: str | Path) -> FederatedDataset:
-    root = Path(source_root)
-    train, test = _shards(root / "train"), _shards(root / "test")
-    writers = sorted(set(train) & set(test))[:200]
-    if len(writers) != 200: raise ValueError("FEMNIST requires 200 writers shared by LEAF train/test")
-    clients = {}
-    for index, writer in enumerate(writers):
-        tx, ty, _ = _tensors(train[writer], torch.empty(0, dtype=torch.long))
-        vx, vy, _ = _tensors(test[writer], torch.empty(0, dtype=torch.long))
-        tids = torch.arange(index * 10_000_000, index * 10_000_000 + ty.numel(), dtype=torch.long)
-        vids = torch.arange(index * 10_000_000 + 5_000_000, index * 10_000_000 + 5_000_000 + vy.numel(), dtype=torch.long)
-        clients[writer] = ClientData(tx, ty, vx, vy, tids, vids)
-    sha = hashlib.sha256()
-    for path in sorted((root / "train").glob("*.json")) + sorted((root / "test").glob("*.json")): sha.update(path.read_bytes())
-    manifest = {"source": str(root), "license": "LEAF/FEMNIST", "leaf_json_sha256": sha.hexdigest(), "parser": "leaf_femnist_v1",
-                "clients": 200, "features": 784, "classes": 62, "writer_selection": "sorted_common_train_test_first_200",
-                "normalization": "pixel_div_255_then_samplewise_l2", "split": "LEAF_writer_supplied_niid_split",
-                "provenance": "USER_SPECIFIED_LEAF_NATURAL_SPLIT"}
+def prepare_data(data_root: str | Path, source_root: str | Path, selection_seed: int = 42, limit_clients: int = 200) -> FederatedDataset:
+    root = resolve_split_root(source_root)
+    train_users = _load_users(root / "train")
+    test_users = _load_users(root / "test")
+    common = [(user, None) for user in sorted(set(train_users) & set(test_users))]
+    selected_users = [user for user, _ in select_records(common, limit_clients, seed=selection_seed)]
+    grouped = []
+    client_ids = []
+    for user in selected_users:
+        x_train, y_train = train_users[user]
+        x_test, y_test = test_users[user]
+        grouped.append((x_train / 255.0, y_train, x_test / 255.0, y_test))
+        client_ids.append(user)
+    grouped = compact_explicit_split_labels(grouped)
+    clients = build_explicit_clients(
+        grouped,
+        client_ids,
+        min_client_samples=20,
+        limit_clients=None,
+        normalization=resolve_normalization_mode("l2", default="l2"),
+        max_train_samples_per_client=256,
+        max_test_samples_per_client=None,
+        seed=selection_seed,
+    )
+    if not clients:
+        raise RuntimeError(f"no valid FEMNIST clients found under {root}")
+    manifest = {
+        "source": str(root),
+        "license": "LEAF/FEMNIST",
+        "parser": "leaf_femnist_legacy_v1",
+        "partition": "leaf_user",
+        "clients": len(clients),
+        "features": 784,
+        "classes": 62,
+        "limit_clients": limit_clients,
+        "selection_seed": selection_seed,
+        "preserve_original_split": True,
+        "min_client_samples": 20,
+        "max_train_samples_per_client": 256,
+        "normalization": "l2",
+        "provenance": "LEGACY_26CASES_FEMNIST",
+    }
     return write_cache(FederatedDataset("femnist", clients, 784, 62, manifest), data_root)

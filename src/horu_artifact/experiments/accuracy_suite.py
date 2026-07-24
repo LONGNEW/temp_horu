@@ -67,13 +67,21 @@ def _encode(dataset: FederatedDataset, clients: dict[str, ClientData], hd_dim: i
     return encoded, tensor_hash(projection)
 
 
-def _pooled(models: dict[str, torch.Tensor], clients: dict[str, dict]) -> float:
-    predictions = torch.cat([PrototypeMemory(models[cid]).predict(c["test_h"], "dot") for cid, c in clients.items()])
-    labels = torch.cat([c["test_y"] for c in clients.values()])
+def _client_accuracies(models: dict[str, torch.Tensor], clients: dict[str, dict]) -> dict[str, float]:
+    accuracies = {}
+    for cid, client in clients.items():
+        predictions = PrototypeMemory(models[cid]).predict(client["test_h"], "dot")
+        accuracies[cid] = float((predictions == client["test_y"]).float().mean().item())
+    return accuracies
+
+
+def _pooled_accuracy(model_map: dict[str, torch.Tensor], clients: dict[str, dict]) -> float:
+    predictions = torch.cat([PrototypeMemory(model_map[cid]).predict(client["test_h"], "dot") for cid, client in clients.items()])
+    labels = torch.cat([client["test_y"] for client in clients.values()])
     return float((predictions == labels).float().mean().item())
 
 
-def _run_fedhdc(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[float, list[dict]]:
+def _run_fedhdc(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[str, float, list[dict]]:
     local = {cid: fedhdc.bundled_model(c["train_h"], c["train_y"], classes) for cid, c in clients.items()}
     global_model = fedhdc.weighted_aggregate(list(local.values()), [int(c["train_y"].numel()) for c in clients.values()])
     rows = []
@@ -87,11 +95,17 @@ def _run_fedhdc(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[floa
                 fedhdc.train_batches(model, c["train_h"][order], c["train_y"][order], cfg["hd_learning_rate"], cfg["batch_size"])
             updated[cid] = model
         global_model = fedhdc.weighted_aggregate(list(updated.values()), [int(c["train_y"].numel()) for c in clients.values()])
-        rows.append({"round": rnd + 1, "pooled_client_test_accuracy": _pooled({cid: global_model for cid in clients}, clients)})
-    return rows[-1]["pooled_client_test_accuracy"], rows
+        client_map = {cid: global_model for cid in clients}
+        local_scores = _client_accuracies(client_map, clients)
+        rows.append({
+            "round": rnd + 1,
+            "global_test_accuracy": _pooled_accuracy(client_map, clients),
+            "mean_local_test_accuracy": float(sum(local_scores.values()) / len(local_scores)),
+        })
+    return "global_test_accuracy", rows[-1]["global_test_accuracy"], rows
 
 
-def _run_hyperfeel(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[float, list[dict]]:
+def _run_hyperfeel(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[str, float, list[dict]]:
     local = [hyperfeel.bundled_model(c["train_h"], c["train_y"], classes) for c in clients.values()]
     central = hyperfeel.sum_deltas(local)
     personalized = {cid: central.clone() for cid in clients}
@@ -113,11 +127,12 @@ def _run_hyperfeel(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[f
                 total_delta.add_(delta); errors.add_(e); counts.add_(n)
             personalized[cid] = memory; previous_weights[cid] = hyperfeel.personalization_weights(errors, counts); deltas.append(total_delta)
         previous_delta = hyperfeel.sum_deltas(deltas)
-        rows.append({"round": rnd + 1, "pooled_client_test_accuracy": _pooled(personalized, clients)})
-    return rows[-1]["pooled_client_test_accuracy"], rows
+        local_scores = _client_accuracies(personalized, clients)
+        rows.append({"round": rnd + 1, "mean_personalized_accuracy": float(sum(local_scores.values()) / len(local_scores))})
+    return "mean_personalized_accuracy", rows[-1]["mean_personalized_accuracy"], rows
 
 
-def _run_horu(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[float, list[dict]]:
+def _run_horu(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[str, float, list[dict]]:
     numeric = {i: client for i, client in enumerate(clients.values())}
     states, common, global_basis, _, _, _ = bootstrap_horu(numeric, cfg["horu"]["common_rank"], cfg["horu"]["global_rank"], cfg["horu"]["personal_rank"], "full_svd", classes)
     grams = {cid: coefficient_gram(common, global_basis, state.personal_basis) for cid, state in states.items()}
@@ -142,14 +157,17 @@ def _run_horu(clients: dict[str, dict], classes: int, cfg: dict) -> tuple[float,
                 cfg["horu"].get("gate_min", 0.1),
                 cfg["horu"].get("gate_max", 0.9),
             )
-        predictions, labels = [], []
+        client_scores = []
         for cid, state in states.items():
             cache = state.test_cache
-            predictions.extend(predict(cache["z_c"][i], cache["z_g"][i], cache["z_p"][i], state.common, state.global_coefficients, state.delta, state.personal, grams[cid]) for i in range(state.test_labels.numel()))
-            labels.append(state.test_labels)
-        y = torch.cat(labels); accuracy = float((torch.tensor(predictions, device=y.device) == y).float().mean().item())
-        rows.append({"round": rnd + 1, "pooled_client_test_accuracy": accuracy})
-    return rows[-1]["pooled_client_test_accuracy"], rows
+            predictions = [
+                predict(cache["z_c"][i], cache["z_g"][i], cache["z_p"][i], state.common, state.global_coefficients, state.delta, state.personal, grams[cid])
+                for i in range(state.test_labels.numel())
+            ]
+            score = float((torch.tensor(predictions, device=state.test_labels.device) == state.test_labels).float().mean().item())
+            client_scores.append(score)
+        rows.append({"round": rnd + 1, "mean_personalized_accuracy": float(sum(client_scores) / len(client_scores))})
+    return "mean_personalized_accuracy", rows[-1]["mean_personalized_accuracy"], rows
 
 
 def run_suite(config_path: str | Path, data_root: str | Path, output: str | Path) -> dict:
@@ -169,12 +187,15 @@ def run_suite(config_path: str | Path, data_root: str | Path, output: str | Path
         device = resolve_device(cfg.get("device", "auto")); encoded, projection_hash = _encode(dataset, selected, cfg["hd_dim"], item["seed"], device)
         run_cfg = dict(cfg); run_cfg["seed"] = item["seed"]
         started = time.perf_counter()
-        if item["method"] == "fedhdc": accuracy, rows = _run_fedhdc(encoded, dataset.num_classes, run_cfg)
-        elif item["method"] == "hyperfeel": accuracy, rows = _run_hyperfeel(encoded, dataset.num_classes, run_cfg)
-        else: accuracy, rows = _run_horu(encoded, dataset.num_classes, run_cfg)
+        if item["method"] == "fedhdc":
+            metric_key, accuracy, rows = _run_fedhdc(encoded, dataset.num_classes, run_cfg)
+        elif item["method"] == "hyperfeel":
+            metric_key, accuracy, rows = _run_hyperfeel(encoded, dataset.num_classes, run_cfg)
+        else:
+            metric_key, accuracy, rows = _run_horu(encoded, dataset.num_classes, run_cfg)
         out.mkdir(parents=True, exist_ok=True)
         (out / "round_metrics.json").write_text(json.dumps(rows, indent=2) + "\n")
-        result = {"status":"pass", "result_status":"VALID_EXPERIMENT_CANDIDATE", "dataset":dataset.name, "method":item["method"], "seed":item["seed"], "num_clients":len(selected), "rounds":cfg["rounds"], "official_global_pooled_test_accuracy":accuracy, "evaluation_protocol":"pooled_client_test_accuracy", "final":rows[-1], "dataset_split_sha256":dataset.split_hash(), "train_selection_sha256":selection_hash, "projection_sha256":projection_hash, "train_samples":sum(c.train_y.numel() for c in selected.values()), "test_samples":sum(c.test_y.numel() for c in selected.values()), "device":str(device), "elapsed_seconds":time.perf_counter()-started, "parameter_provenance":"USER_SPECIFIED_T006_T007", "suite_config_sha256":suite_config_sha256}
+        result = {"status":"pass", "result_status":"VALID_EXPERIMENT_CANDIDATE", "dataset":dataset.name, "method":item["method"], "seed":item["seed"], "num_clients":len(selected), "rounds":cfg["rounds"], "metric_key":metric_key, "primary_value":accuracy, "evaluation_protocol":metric_key, "final":rows[-1], "dataset_split_sha256":dataset.split_hash(), "train_selection_sha256":selection_hash, "projection_sha256":projection_hash, "train_samples":sum(c.train_y.numel() for c in selected.values()), "test_samples":sum(c.test_y.numel() for c in selected.values()), "device":str(device), "elapsed_seconds":time.perf_counter()-started, "parameter_provenance":"LEGACY_26CASES_PORT", "suite_config_sha256":suite_config_sha256}
         (out / "config.resolved.yaml").write_text(yaml.safe_dump(run_cfg, sort_keys=False))
         (out / "environment.json").write_text(json.dumps({"python":platform.python_version(), "torch":torch.__version__, "device":str(device)}, indent=2)+"\n")
         result_path.write_text(json.dumps(result, indent=2)+"\n"); completed.append(result)

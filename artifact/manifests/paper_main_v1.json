@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "profile": "paper_main_v1",
+  "result_status": "BLOCKED_PENDING_PROVENANCE",
+  "paper": {
+    "title": "Personalized Federated Hyperdimensional Computing via Shared-Personal Prototype Memory Decomposition",
+    "manuscript_git_ref": "origin/master",
+    "manuscript_commit": "c2a4b4d",
+    "manuscript_path": "26CASES_HD_subspace_unzipped/HD_subspace_shinhyoung_minimal_revision.tex",
+    "manuscript_sha256": "1379b891391098c218b491aef3f761cfaab04c8f0df315c9b99aa26b2655117a",
+    "protocol_lines": "632-677",
+    "claimed_summary": {
+      "horu_mean_accuracy_percent": 72.66,
+      "hyperfeel_mean_accuracy_percent": 68.28,
+      "fedhdc_mean_accuracy_percent": 51.38,
+      "source_lines": "722-725"
+    }
+  },
+  "protocol": {
+    "datasets": ["uci_har", "isolet_raw", "femnist", "wisdm", "synthetic", "ninapro_db1"],
+    "rounds": 25,
+    "client_participation": 1.0,
+    "local_epochs": 3,
+    "batch_size": 32,
+    "large_dataset_train_threshold": 100000,
+    "large_dataset_train_cap": 50000,
+    "hd_dim": 2000,
+    "hd_lr": 0.035,
+    "validation_fraction": 0.0,
+    "shared_rank": 32,
+    "common_rank": 24,
+    "global_only_rank": 8,
+    "personal_rank": 64,
+    "provenance": "PAPER_SPECIFIED: manuscript lines 632-677"
+  },
+  "dataset_protocol": {
+    "uci_har": {"partition": "subject", "clients": 30, "normalization": "l2", "test_fraction": 0.3},
+    "isolet_raw": {"partition": "original_federated_split", "clients": 8, "normalization": "l2", "test_fraction": 0.3},
+    "femnist": {"partition": "original_leaf_writer", "clients": 200, "normalization": "l2", "split": "canonical_train_test"},
+    "wisdm": {"partition": "user_phone_accel", "clients": 51, "normalization": "standardize", "test_fraction": 0.3, "max_train_per_client": 5000, "max_test_per_client": 1000},
+    "synthetic": {"partition": "leaf_user", "clients": 30, "normalization": "none"},
+    "ninapro_db1": {"partition": "subject_emg_glove", "clients": 27, "normalization": "standardize", "test_fraction": 0.3, "max_train_per_client": 5000, "max_test_per_client": 1000},
+    "provenance": "PAPER_SPECIFIED: manuscript lines 635-646"
+  },
+  "neural_protocol": {
+    "femnist": {"architecture": "cnn_32_64_relu_maxpool_fc2048", "optimizer": "sgd", "lr": 0.06, "momentum": 0.0, "weight_decay": 0.0, "dropout": 0.0, "dfl_align_weight": 1.0, "dfl_disentangle_weight": 0.1, "dfl_samplewise_standardization": true},
+    "non_femnist": {"architecture": "mlp_4x256", "optimizer": "adam", "lr": 0.001, "dropout": 0.0, "personalization_steps_per_round": 1},
+    "provenance": "PAPER_SPECIFIED: manuscript lines 661-672"
+  },
+  "data_contract": {
+    "source_root_environment_variable": "HORU_SOURCE_DATA_ROOT",
+    "default_source_root": "/home/longnew/data/datasets/horu-paper-main/source",
+    "inventory_path": "/home/longnew/data/datasets/horu-paper-main/data_inventory.json",
+    "provenance": "REPO_EXISTING path layout; source snapshot identity remains unresolved"
+  },
+  "method_scope": {
+    "hd_methods": ["horu_hd", "fedhdc", "hyperfeel"],
+    "nn_methods": ["fedavg_mlp", "dfl_mlp", "fedavg_cnn", "dfl_cnn"],
+    "runner_key_mapping": {
+      "horu_hd": "HoRU",
+      "fedhdc": "FedHDC",
+      "hyperfeel": "HyperFeel"
+    },
+    "provenance": "PAPER_SPECIFIED: manuscript lines 649-672 for method identities; REPO_EXISTING: run_seven_dataset_benchmark.py HD_METHODS/OPTIONAL_HD_METHODS for executable runner keys."
+  },
+  "seed_protocol": {
+    "seeds": [],
+    "aggregation": "UNKNOWN_OR_UNVERIFIED",
+    "provenance": "The manuscript says multiple runs but does not provide the list or aggregation rule."
+  },
+  "paper_reproduction_blockers": [
+    {
+      "id": "source_dataset_snapshot",
+      "severity": "high",
+      "detail": "The active code references ../fisher_FL_hd_unzipped, but that repository and its dataset snapshot are absent. No immutable archive URL, commit, checksum, or preparation recipe is recorded.",
+      "required_resolution": "Supply an immutable source snapshot and per-dataset checksums under /home/longnew/data/datasets/horu-paper-main/."
+    },
+    {
+      "id": "seed_protocol",
+      "severity": "high",
+      "detail": "The manuscript says results are averages over multiple runs but does not state the seed list, number of runs, aggregation rule, or error bars.",
+      "required_resolution": "Supply the exact seed list and result aggregation rule from the original experiment record."
+    },
+    {
+      "id": "isolet_partition",
+      "severity": "high",
+      "detail": "The manuscript says ISOLET uses an original federated split, while configs/dataset_specs.json currently configures a Dirichlet alpha=5.0 split. These are not equivalent without source evidence.",
+      "required_resolution": "Supply the original split implementation or revise the paper-target definition with documented approval."
+    },
+    {
+      "id": "result_artifact_provenance",
+      "severity": "high",
+      "detail": "Only aggregate values in manuscript prose and a raster figure are available; no source per-seed reports, table source, or plotting inputs are tracked.",
+      "required_resolution": "Supply immutable per-seed result reports and figure/table generation inputs."
+    },
+    {
+      "id": "software_environment",
+      "severity": "medium",
+      "detail": "No paper-run dependency lock, OS/CUDA specification, or hardware record is available.",
+      "required_resolution": "Supply the original environment lock or classify a new lock as a candidate rerun environment."
+    }
+  ]
+}

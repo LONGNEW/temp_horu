@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "name": "reconstruction_cuda_suite_seed42_v1",
+  "result_status": "CUDA_RECONSTRUCTION_SCREENING_ONLY",
+  "purpose": "Run a complete public-data, seed-42 six-dataset HD reconstruction screen; never a paper-reproduction claim.",
+  "protocol": {
+    "datasets": ["uci_har", "isolet_raw", "femnist", "wisdm", "synthetic", "ninapro_db1"],
+    "methods": ["horu_hd", "fedhdc", "hyperfeel"],
+    "metric_contract": {
+      "horu_hd": "mean_personalized_accuracy: unweighted mean over client/subject test accuracies",
+      "hyperfeel": "mean_personalized_accuracy: unweighted mean over client/subject test accuracies",
+      "fedhdc": "global_test_accuracy: sample-weighted accuracy of the single global prototype over concatenated client test samples"
+    },
+    "seed": 42,
+    "subject_selection": "seeded_random over the complete valid client pool when a dataset's configured client limit excludes clients",
+    "round_checkpoints": [1, 25],
+    "rounds": 25,
+    "client_participation": 1.0,
+    "local_epochs": 3,
+    "batch_size": 32,
+    "hd_dim": 2000,
+    "hd_lr": 0.035,
+    "subspace_shared_rank": 32,
+    "subspace_intersection_rank": 24,
+    "subspace_personal_rank": 64,
+    "device": "cuda",
+    "deterministic_algorithms": true,
+    "torch_num_threads": 1
+  },
+  "parameter_provenance": {
+    "seed": "USER_SPECIFIED",
+    "hd_protocol": "PAPER_SPECIFIED: manuscript lines 657-672",
+    "cuda_runtime": "ASSUMED_FOR_PROTOTYPE: PyTorch 2.13.0+cu130 on the execution machine",
+    "aggregate": "COMMON_PRACTICE_ASSUMPTION: unweighted mean of six single-seed round-25 metrics"
+  },
+  "data_forms": {
+    "uci_har": "Official UCI-HAR subject split; repository feature loader.",
+    "isolet_raw": "Official ISOLET files with repository 8-client Dirichlet alpha=5 federation; not the unavailable original federated split.",
+    "femnist": "Official LEAF revision 09ec454, niid full sample split; 200 writers sampled from the full available writer pool with selection seed 42.",
+    "wisdm": "Official UCI 507 phone accelerometer, 51 users, raw xyz rows; representation is UNSPECIFIED_BY_PAPER.",
+    "synthetic": "Official LEAF example generator: 1000 tasks, 5 classes, 60 dimensions and all generation/split seeds 42.",
+    "ninapro_db1": "Official NinaPro DB1 preprocessed subject archives, 27 subjects, EMG+glove."
+  },
+  "limitations": [
+    "The original source snapshot, seed list, aggregation rule, and original execution environment are unavailable.",
+    "ISOLET federation and WISDM representation are not established as paper-matched.",
+    "This manifest must never be used to label output as a paper reproduction."
+  ]
+}

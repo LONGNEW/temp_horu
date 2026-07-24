@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "name": "reconstruction_pamap2_hd_comparison_seed42_v1",
+  "result_status": "CUDA_RECONSTRUCTION_SCREENING_ONLY",
+  "purpose": "Run the three-method metric contract on the official UCI PAMAP2 Protocol input; never a paper-reproduction claim.",
+  "protocol": {
+    "dataset": "pamap2", "methods": ["horu_hd", "hyperfeel", "fedhdc"], "seed": 42,
+    "subject_selection": "seeded_random over the nine valid subjects, limited to eight",
+    "round_checkpoints": [1, 25], "rounds": 25, "client_participation": 1.0,
+    "local_epochs": 3, "batch_size": 32, "hd_dim": 2000, "hd_lr": 0.035,
+    "subspace_shared_rank": 32, "subspace_intersection_rank": 24, "subspace_personal_rank": 64,
+    "device": "cuda", "deterministic_algorithms": true, "torch_num_threads": 1,
+    "metric_contract": {
+      "horu_hd": "mean_personalized_accuracy: unweighted subject mean",
+      "hyperfeel": "mean_personalized_accuracy: unweighted subject mean",
+      "fedhdc": "global_test_accuracy: sample-weighted single global prototype accuracy"
+    }
+  },
+  "parameter_provenance": {"seed": "USER_SPECIFIED", "input": "OFFICIAL_UCI_INPUT", "training_settings": "REPO_EXISTING plus PAPER_SPECIFIED", "paper_match": "UNKNOWN_OR_UNVERIFIED"},
+  "limitations": ["One seed and reconstructed public preprocessing make this a screening only."]
+}

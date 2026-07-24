@@ -1,30 +1,72 @@
-"""T006 deterministic 30-client synthetic loader."""
+"""Legacy LEAF synthetic loader used by the 26CASES HoRU code path."""
 from __future__ import annotations
+
+import json
 from pathlib import Path
-import torch
-from .federated import ClientData, FederatedDataset, stratified_split, write_cache
+
+import numpy as np
+
+from .federated import FederatedDataset, write_cache
+from .legacy_contract import build_explicit_clients, compact_explicit_split_labels, resolve_normalization_mode, resolve_split_root
 
 
-def prepare_data(data_root: str | Path, seed: int = 0) -> FederatedDataset:
-    g = torch.Generator().manual_seed(seed)
-    classes, features, clients, per_client = 10, 60, 30, 600
-    # alpha/beta are recorded user-specified generator controls; this generator
-    # uses their Dirichlet distributions directly rather than hidden defaults.
-    base = torch.randn(classes, features, generator=g)
-    result = {}
-    for i in range(clients):
-        # Distribution.sample has no Generator argument; isolate and seed the
-        # global RNG so cache identity is independent of process history.
-        with torch.random.fork_rng(devices=[]):
-            torch.manual_seed(seed + 1_000_003 + i)
-            proportions = torch.distributions.Dirichlet(torch.full((classes,), 0.5)).sample()
-        labels = torch.multinomial(proportions, per_client, replacement=True, generator=g).long()
-        shift = torch.randn(features, generator=g) * 0.5
-        x = base[labels] + shift + torch.randn(per_client, features, generator=g)
-        train, test = stratified_split(labels, .3, seed + i)
-        ids = torch.arange(i * per_client, (i + 1) * per_client, dtype=torch.long)
-        result[f"{i:03d}"] = ClientData(x[train], labels[train], x[test], labels[test], ids[train], ids[test])
-    manifest = {"source": "internal_leaf_style_generator", "license": "N/A", "generator": "horu_artifact.datasets.synthetic.v1",
-                "clients": clients, "features": features, "classes": classes, "alpha": .5, "beta": .5,
-                "seed": seed, "normalization": "none", "provenance": "USER_SPECIFIED_MODERATE_HETEROGENEITY"}
-    return write_cache(FederatedDataset("synthetic", result, features, classes, manifest), data_root)
+def _extract_xy(entry: dict) -> tuple[np.ndarray, np.ndarray]:
+    x = np.asarray(entry["x"], dtype=np.float32)
+    y = np.asarray(entry["y"], dtype=np.int64)
+    if x.ndim == 1:
+        x = x.reshape(1, -1)
+    elif x.ndim > 2:
+        x = x.reshape(x.shape[0], -1)
+    return x, y
+
+
+def _load_split_users(split_dir: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    users: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for path in sorted(split_dir.glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        for user in [str(value) for value in payload.get("users", [])]:
+            entry = payload.get("user_data", {}).get(user)
+            if entry is not None:
+                users[user] = _extract_xy(entry)
+    return users
+
+
+def prepare_data(data_root: str | Path, source_root: str | Path, seed: int = 42, limit_clients: int = 30) -> FederatedDataset:
+    root = resolve_split_root(source_root)
+    train_users = _load_split_users(root / "train")
+    test_users = _load_split_users(root / "test")
+    grouped = []
+    client_ids = []
+    for user in sorted(set(train_users) & set(test_users)):
+        x_train, y_train = train_users[user]
+        x_test, y_test = test_users[user]
+        grouped.append((x_train, y_train, x_test, y_test))
+        client_ids.append(user)
+    grouped = compact_explicit_split_labels(grouped)
+    clients = build_explicit_clients(
+        grouped,
+        client_ids,
+        min_client_samples=10,
+        limit_clients=limit_clients,
+        normalization=resolve_normalization_mode("none", default="none"),
+        max_train_samples_per_client=None,
+        max_test_samples_per_client=None,
+        seed=seed,
+    )
+    if not clients:
+        raise RuntimeError(f"no valid LEAF Synthetic clients found under {root}")
+    manifest = {
+        "source": str(root),
+        "license": "LEAF Synthetic",
+        "parser": "leaf_synthetic_legacy_v1",
+        "partition": "leaf_user",
+        "clients": len(clients),
+        "features": next(iter(clients.values())).train_x.shape[1],
+        "classes": int(max(max(client.train_y.max().item(), client.test_y.max().item()) for client in clients.values())) + 1,
+        "limit_clients": limit_clients,
+        "min_client_samples": 10,
+        "normalization": "none",
+        "seed": seed,
+        "provenance": "LEGACY_26CASES_SYNTHETIC",
+    }
+    return write_cache(FederatedDataset("synthetic", clients, manifest["features"], manifest["classes"], manifest), data_root)

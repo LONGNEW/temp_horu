@@ -12,10 +12,11 @@ def write_summary(output: str | Path) -> dict:
         if method.endswith("_bootstrap"):
             continue
         final = result.get("final", {})
-        metric = result.get("official_global_pooled_test_accuracy", result.get("personalized_pooled_test_accuracy"))
+        metric_name = result.get("metric_key", "pooled_client_test_accuracy")
+        metric = result.get("primary_value", result.get("official_global_pooled_test_accuracy", result.get("personalized_pooled_test_accuracy")))
         if metric is None:
             failures.append({"dataset":dataset,"method":method,"seed":seed,"reason":"result has no final accuracy"}); continue
-        rows.append({"dataset":dataset,"method":method,"seed":int(seed),"metric_name":"pooled_client_test_accuracy","evaluation_protocol":result.get("evaluation_protocol", "personalized_pooled_test_accuracy"),"final_accuracy":metric,
+        rows.append({"dataset":dataset,"method":method,"seed":int(seed),"metric_name":metric_name,"evaluation_protocol":result.get("evaluation_protocol", metric_name),"final_accuracy":metric,
                      "client_mean":final.get("global_model_client_mean_accuracy",final.get("personalized_mean_accuracy")),
                      "client_p10":final.get("global_model_client_p10_accuracy",final.get("personalized_p10_accuracy")),
                      "client_worst":final.get("global_model_client_worst_accuracy",final.get("personalized_worst_accuracy")),

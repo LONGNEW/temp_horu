@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "name": "reconstruction_campaign_a1_smoke_uci_har_seed42_v1",
+  "result_status": "SMOKE_TEST_ONLY",
+  "purpose": "Validate the A1 campaign orchestration on public UCI-HAR input with every control allocation; not a paper-reproduction result.",
+  "protocol": {
+    "campaign_cluster": "A1_controls", "dataset": "uci_har", "method": "horu_hd", "seed": 42,
+    "round_checkpoints": [3, 5], "local_epochs": 1, "batch_size": 32, "hd_dim": 1000,
+    "hd_lr": 0.035, "client_participation": 1.0, "device": "cuda",
+    "control_configs": ["full", "no_common", "no_global_only", "no_personal", "shared_only", "personal_only"]
+  },
+  "parameter_provenance": {"seed": "USER_SPECIFIED", "control_configs": "REPO_EXISTING: run_commonbasis_campaign.py", "smoke_budget": "ASSUMED_FOR_PROTOTYPE"},
+  "limitations": ["The five-round smoke budget must not be compared with the 25-round reconstruction screens or paper results."]
+}

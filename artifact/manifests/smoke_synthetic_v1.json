@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "profile": "smoke_synthetic_v1",
+  "result_status": "SMOKE_TEST_ONLY",
+  "purpose": "Verify the current HoRU runner, checked-in LEAF synthetic shards, and artifact scripts execute together.",
+  "provenance": {
+    "all_runtime_values": "ASSUMED_FOR_PROTOTYPE",
+    "implementation_commit": "6196c74",
+    "implementation_ref": "main",
+    "reason": "These values bound cost and exercise the pipeline; they are not paper settings."
+  },
+  "command": [
+    "python3",
+    "run_hd_checkpoint_comparison.py",
+    "--datasets", "synthetic",
+    "--methods", "horu_hd",
+    "--device", "cpu",
+    "--deterministic-algorithms",
+    "--torch-num-threads", "1",
+    "--seeds", "13",
+    "--round-checkpoints", "1",
+    "--local-epochs", "1",
+    "--batch-size", "32",
+    "--hd-dim", "64",
+    "--hd-lr", "0.035",
+    "--large-dataset-train-threshold", "100000",
+    "--large-dataset-train-cap", "50000"
+  ],
+  "required_inputs": [
+    "data/leaf_synthetic/data/train/data_niid_0_keep_20_train_6.json",
+    "data/leaf_synthetic/data/test/data_niid_0_keep_20_test_6.json"
+  ],
+  "expected_report_contract": {
+    "datasets": ["synthetic"],
+    "methods": ["horu_hd"],
+    "round_checkpoints": [1],
+    "seeds": [13]
+  }
+}

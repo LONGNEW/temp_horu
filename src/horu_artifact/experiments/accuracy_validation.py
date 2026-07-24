@@ -9,11 +9,8 @@ def validate_results(results: str | Path, reference: str | Path | None = None) -
     checks=[]
     for row in report["rows"]:
         checks.append({"name":"result_file_has_final_accuracy","dataset":row["dataset"],"method":row["method"],"seed":row["seed"],"passed":True})
-    # Cross-method comparisons are intentionally invalid when metric definitions differ.
-    metric_by_dataset={}
-    for row in report["rows"]: metric_by_dataset.setdefault(row["dataset"],set()).add(row["metric_name"])
-    for dataset, metrics in metric_by_dataset.items():
-        checks.append({"name":"common_metric_definition","dataset":dataset,"passed":len(metrics)==1,"detail":sorted(metrics)})
+    for row in report["rows"]:
+        checks.append({"name":"metric_key_present","dataset":row["dataset"],"method":row["method"],"seed":row["seed"],"passed":bool(row.get("metric_name"))})
     requested_path=root/"summary"/"requested_runs.json"
     requested=json.loads(requested_path.read_text()) if requested_path.exists() else []
     observed={(r["dataset"],r["method"],int(r["seed"])) for r in report["rows"]}

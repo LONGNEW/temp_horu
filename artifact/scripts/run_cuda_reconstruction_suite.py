@@ -1,239 +1,128 @@
 #!/usr/bin/env python3
-"""Run the CUDA reconstruction suite through ``horu_artifact``.
-
-This wrapper keeps the old script location but routes execution through the
-active cache builders and accuracy-suite runner under ``src/horu_artifact``.
-It accepts either the top-level preparation directories documented in the
-README or the already-resolved inner data paths. It can also run a dataset
-subset, which is useful for splitting the six-dataset suite across machines.
-"""
+"""Run the manifest-bound six-dataset CUDA reconstruction screening suite."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MANIFEST_PATH = REPO_ROOT / "artifact" / "manifests" / "reconstruction_cuda_suite_v1.json"
-MANIFEST_DATASETS = ("uci_har", "isolet_raw", "femnist", "wisdm", "synthetic", "ninapro_db1")
-RUNTIME_DATASETS = {
-    "uci_har": "ucihar",
-    "isolet_raw": "isolet",
-    "femnist": "femnist",
-    "wisdm": "wisdm",
-    "synthetic": "synthetic",
-    "ninapro_db1": "ninapro",
-}
-PREPARE_DATASETS = {
-    "uci_har": "ucihar",
-    "isolet_raw": "isolet",
-    "femnist": "femnist",
-    "wisdm": "wisdm",
-    "synthetic": "synthetic",
-    "ninapro_db1": "ninapro",
+MANIFEST_PATH = REPO_ROOT / "artifact" / "manifests" / "reconstruction_cuda_suite_seed42_v1.json"
+SUMMARY = REPO_ROOT / "artifact" / "scripts" / "summarize_reconstruction_suite.py"
+ALL_DATASETS = ("uci_har", "isolet_raw", "femnist", "wisdm", "synthetic", "ninapro_db1")
+DATASET_RELATIVE_ROOTS = {
+    "uci_har": Path("data/tiers/on_device_hdc/uci_har/UCI HAR Dataset"),
+    "isolet_raw": Path("data/raw/isolet"),
+    "femnist": Path("data/tiers/standard_pfl/femnist"),
+    "wisdm": Path("data/tiers/on_device_hdc/wisdm"),
+    "synthetic": Path("data/leaf_synthetic/data"),
+    "ninapro_db1": Path("data/tiers/on_device_hdc/ninapro_db1"),
 }
 
 
-def _run(command: list[str], env: dict[str, str]) -> int:
-    print("Command:\n" + " ".join(command))
-    return subprocess.run(command, cwd=REPO_ROOT, env=env, check=False).returncode
+def command_for(dataset: str, source_root: Path, output: Path, protocol: dict[str, object]) -> list[str]:
+    return [
+        sys.executable, "run_hd_checkpoint_comparison.py",
+        "--datasets", dataset, "--methods", *protocol["methods"],
+        "--device", str(protocol["device"]), "--deterministic-algorithms",
+        "--torch-num-threads", str(protocol["torch_num_threads"]),
+        "--seeds", str(protocol["seed"]),
+        "--round-checkpoints", *(str(value) for value in protocol["round_checkpoints"]),
+        "--local-epochs", str(protocol["local_epochs"]), "--batch-size", str(protocol["batch_size"]),
+        "--client-participation", str(protocol["client_participation"]),
+        "--hd-dim", str(protocol["hd_dim"]), "--hd-lr", str(protocol["hd_lr"]),
+        "--subspace-shared-rank", str(protocol["subspace_shared_rank"]),
+        "--subspace-intersection-rank", str(protocol["subspace_intersection_rank"]),
+        "--subspace-personal-rank", str(protocol["subspace_personal_rank"]),
+        "--json-out", str(output / f"{dataset}.json"), "--md-out", str(output / f"{dataset}.md"),
+    ]
 
 
-def _resolve_existing_path(label: str, candidates: list[Path]) -> Path:
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    tried = "\n".join(f"  - {candidate}" for candidate in candidates)
-    raise FileNotFoundError(f"Missing prepared input for {label}. Checked:\n{tried}")
-
-
-def _contains_any(path: Path, pattern: str) -> bool:
-    return path.is_dir() and any(path.glob(pattern))
-
-
-def _resolve_isolet_source(root: Path) -> Path:
-    candidates = []
-    if root.is_dir() and (root / "isolet1+2+3+4.data").is_file() and (root / "isolet5.data").is_file():
-        candidates.append(root)
-    candidates.append(root / "data" / "raw" / "isolet")
-    return _resolve_existing_path("isolet_raw", candidates)
-
-
-def _resolve_femnist_source(root: Path) -> Path:
-    candidates = []
-    if (root / "train").is_dir() and (root / "test").is_dir():
-        candidates.append(root)
-    candidates.append(root / "data" / "tiers" / "standard_pfl" / "femnist")
-    return _resolve_existing_path("femnist", candidates)
-
-
-def _resolve_wisdm_source(root: Path) -> Path:
-    candidates = []
-    if root.is_file():
-        candidates.append(root)
-    candidates.append(root / "wisdm-dataset.zip")
-    candidates.append(root / "data" / "tiers" / "on_device_hdc" / "wisdm" / "wisdm-dataset.zip")
-    return _resolve_existing_path("wisdm", candidates)
-
-
-def _resolve_ninapro_source(root: Path) -> Path:
-    candidates = []
-    if _contains_any(root, "S*_A1_E*.mat"):
-        candidates.append(root)
-    candidates.append(root / "data" / "tiers" / "on_device_hdc" / "ninapro_db1")
-    return _resolve_existing_path("ninapro_db1", candidates)
-
-
-def _selected_datasets(requested: list[str] | None) -> list[str]:
-    ordered = requested or list(MANIFEST_DATASETS)
-    seen = set()
-    result = []
-    for dataset in ordered:
+def _selected_datasets(requested: list[str] | None, protocol: dict[str, object]) -> list[str]:
+    allowed = list(protocol["datasets"])
+    if not requested:
+        return allowed
+    selected: list[str] = []
+    seen: set[str] = set()
+    for dataset in requested:
+        if dataset not in allowed:
+            raise ValueError(f"Dataset {dataset} is not in the manifest protocol")
         if dataset not in seen:
             seen.add(dataset)
-            result.append(dataset)
-    return result
+            selected.append(dataset)
+    return selected
 
 
-def _resolve_selected_sources(args: argparse.Namespace, selected: list[str]) -> dict[str, str]:
-    sources: dict[str, str] = {}
-    if "isolet_raw" in selected:
-        if args.isolet_raw_source_root is None:
-            raise FileNotFoundError("Missing --isolet-raw-source-root for selected dataset isolet_raw")
-        sources["isolet"] = str(_resolve_isolet_source(args.isolet_raw_source_root))
-    if "femnist" in selected:
-        if args.femnist_source_root is None:
-            raise FileNotFoundError("Missing --femnist-source-root for selected dataset femnist")
-        sources["femnist"] = str(_resolve_femnist_source(args.femnist_source_root))
-    if "wisdm" in selected:
-        if args.wisdm_source_root is None:
-            raise FileNotFoundError("Missing --wisdm-source-root for selected dataset wisdm")
-        sources["wisdm"] = str(_resolve_wisdm_source(args.wisdm_source_root))
-    if "ninapro_db1" in selected:
-        if args.ninapro_db1_source_root is None:
-            raise FileNotFoundError("Missing --ninapro-db1-source-root for selected dataset ninapro_db1")
-        sources["ninapro"] = str(_resolve_ninapro_source(args.ninapro_db1_source_root))
-    return sources
+def _materialize_source_root(dataset: str, source_root: Path, dataset_output: Path) -> Path:
+    expected = source_root / DATASET_RELATIVE_ROOTS[dataset]
+    if expected.exists():
+        return source_root
 
-
-def _datasets_payload(protocol: dict, args: argparse.Namespace, sources: dict[str, str]) -> dict:
-    payload = {
-        "seed": int(protocol["seed"]),
-        "sources": sources,
-        "wisdm_client_ids": list(range(1600, 1651)),
-        "wisdm_recover_missing_from_raw": True,
-    }
-    record_only = {}
-    if args.uci_har_source_root is not None:
-        record_only["uci_har"] = str(args.uci_har_source_root)
-    if args.synthetic_source_root is not None:
-        record_only["synthetic"] = str(args.synthetic_source_root)
-    if record_only:
-        payload["source_roots_record_only"] = record_only
-    return payload
-
-
-def _suite_payload(protocol: dict, selected: list[str]) -> dict:
-    return {
-        "datasets": [RUNTIME_DATASETS[dataset] for dataset in selected],
-        "methods": ["fedhdc", "hyperfeel", "horu"],
-        "seeds": [int(protocol["seed"])],
-        "rounds": int(protocol["rounds"]),
-        "participation": float(protocol["client_participation"]),
-        "local_epochs": int(protocol["local_epochs"]),
-        "batch_size": int(protocol["batch_size"]),
-        "hd_dim": int(protocol["hd_dim"]),
-        "hd_learning_rate": float(protocol["hd_lr"]),
-        "device": str(protocol["device"]),
-        "horu": {
-            "common_rank": int(protocol["subspace_intersection_rank"]),
-            "global_rank": int(protocol["subspace_shared_rank"]) - int(protocol["subspace_intersection_rank"]),
-            "personal_rank": int(protocol["subspace_personal_rank"]),
-            "eta_shared": float(protocol["hd_lr"]),
-            "eta_personal": float(protocol["hd_lr"]),
-            "eta_global": float(protocol["hd_lr"]),
-        },
-    }
+    staged_root = dataset_output / "_source_root"
+    target = staged_root / DATASET_RELATIVE_ROOTS[dataset]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists() or target.is_symlink():
+        if target.is_dir() and not target.is_symlink():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    target.symlink_to(source_root.resolve(), target_is_directory=source_root.is_dir())
+    return staged_root
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--dataset",
-        action="append",
-        choices=MANIFEST_DATASETS,
-        dest="datasets",
-        help="Limit the run to one or more manifest dataset identifiers. Defaults to the full six-dataset suite.",
-    )
-    for dataset in MANIFEST_DATASETS:
+    parser.add_argument("--dataset", action="append", choices=ALL_DATASETS, dest="datasets")
+    for dataset in ALL_DATASETS:
         parser.add_argument(f"--{dataset.replace('_', '-')}-source-root", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     protocol = manifest["protocol"]
-    selected = _selected_datasets(args.datasets)
+    selected = _selected_datasets(args.datasets, protocol)
     if args.output_dir.exists():
         print(f"Refusing to overwrite existing suite output: {args.output_dir}", file=sys.stderr)
         return 2
     args.output_dir.mkdir(parents=True)
-
-    try:
-        resolved_sources = _resolve_selected_sources(args, selected)
-    except FileNotFoundError as error:
-        print(str(error), file=sys.stderr)
-        return 2
-
-    data_root = args.output_dir / "data"
-    results_root = args.output_dir / "results"
-    datasets_config = args.output_dir / "datasets.generated.json"
-    suite_config = args.output_dir / "accuracy_suite.generated.json"
-    datasets_config.write_text(
-        json.dumps(_datasets_payload(protocol, args, resolved_sources), indent=2) + "\n",
-        encoding="utf-8",
-    )
-    suite_config.write_text(
-        json.dumps(_suite_payload(protocol, selected), indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-    env = {"PYTHONPATH": str(REPO_ROOT / "src"), **dict(os.environ)}
+    reports: list[str] = []
     for dataset in selected:
-        prepare = [
-            sys.executable,
-            "-m",
-            "horu_artifact",
-            "prepare-data",
-            PREPARE_DATASETS[dataset],
-            "--config",
-            str(datasets_config),
-            "--data-root",
-            str(data_root),
-        ]
-        if _run(prepare, env) != 0:
+        source_root = getattr(args, f"{dataset}_source_root")
+        if source_root is None:
+            print(f"Missing source root flag for selected dataset {dataset}", file=sys.stderr)
             return 2
-
-    run_suite = [
+        if not source_root.is_dir():
+            print(f"Missing source root for {dataset}: {source_root}", file=sys.stderr)
+            return 2
+        dataset_output = args.output_dir / dataset
+        dataset_output.mkdir()
+        runtime_source_root = _materialize_source_root(dataset, source_root, dataset_output)
+        command = command_for(dataset, source_root, dataset_output, protocol)
+        print("Run Manifest\nCommand:\n" + " ".join(command))
+        completed = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            env={**os.environ, "HORU_SOURCE_DATA_ROOT": str(runtime_source_root)},
+            check=False,
+        )
+        if completed.returncode != 0:
+            return completed.returncode
+        reports.extend(["--report", f"{dataset}={dataset_output / f'{dataset}.json'}"])
+    summary_command = [
         sys.executable,
-        "-m",
-        "horu_artifact",
-        "run-suite",
-        "--config",
-        str(suite_config),
-        "--data-root",
-        str(data_root),
+        str(SUMMARY),
+        *reports,
+        "--manifest",
+        str(MANIFEST_PATH),
         "--output",
-        str(results_root),
+        str(args.output_dir / "summary.json"),
     ]
-    if _run(run_suite, env) != 0:
-        return 2
-    validate = [sys.executable, "-m", "horu_artifact", "validate-results", "--results", str(results_root)]
-    return _run(validate, env)
+    return subprocess.run(summary_command, cwd=REPO_ROOT, check=False).returncode
 
 
 if __name__ == "__main__":

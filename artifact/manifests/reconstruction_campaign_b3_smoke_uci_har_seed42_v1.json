@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "name": "reconstruction_campaign_b3_smoke_uci_har_seed42_v1",
+  "result_status": "SMOKE_TEST_ONLY",
+  "purpose": "Validate the B3 dimension-scaling campaign on public UCI-HAR; not a paper-reproduction result.",
+  "protocol": {
+    "campaign_cluster": "B3_dimension_scaling", "dataset": "uci_har", "method": "horu_hd", "seed": 42,
+    "modes": ["fixed_absolute", "fixed_relative"], "hd_dimensions": [1000, 2000],
+    "round_checkpoints": [5, 10], "local_epochs": 1, "batch_size": 32, "hd_lr": 0.035, "device": "cuda"
+  },
+  "parameter_provenance": {"seed": "USER_SPECIFIED", "dimension_modes": "REPO_EXISTING: smoke_settings", "smoke_budget": "ASSUMED_FOR_PROTOTYPE"},
+  "limitations": ["This UCI-HAR single-seed smoke is not a general scaling-law result."]
+}

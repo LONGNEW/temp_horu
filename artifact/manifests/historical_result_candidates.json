@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "purpose": "Track historical Git result artifacts that are useful for provenance audit but are not paper-result evidence.",
+  "candidates": [
+    {
+      "id": "legacy_nn_full7_seed13",
+      "git_commit": "350466ee8cbb3d2a1e5ed02ddff457eec2b0d2ce",
+      "path": "results/nn_parammatched_full7_hd2000_r10_20_25.json",
+      "sha256": "52c1b93925555999d18824a545f2f4cb1666a2d650683dc93b8e99f7521eab42",
+      "status": "NOT_PAPER_EVIDENCE",
+      "reason": "Single seed [13], seven datasets including PAMAP2, and its FEMNIST DFL value differs materially from the manuscript prose value."
+    },
+    {
+      "id": "legacy_commonbasis_full7_seed13",
+      "git_commit": "45a185402d9a949ef8641136e322c38cbe9ccd55",
+      "path": "results/hd_checkpoint_comparison_full7_commonbasis_pool_then_covariance_clientsync_refactor_s32_ir75_c24_g8_p64_vf0_dim2000_e3_r10_20_25_cap50k.json",
+      "sha256": "187c999a82538abc5fb83e218c8d3208e93210eee9133ac03f014162e371609f",
+      "status": "NOT_PAPER_EVIDENCE",
+      "reason": "Uses a legacy method key and seven-dataset scope; no link to the manuscript figure/table source is recorded."
+    },
+    {
+      "id": "legacy_rank_screen_seed13",
+      "git_commit": "c1dfa8259bc84cd32c556b60599d3310275916dc",
+      "path": "results/commonbasis_common_delta_zero_design_screen_full7_vf0p0_dim2000_e3_r10_20_25_cap50k.json",
+      "sha256": "8c3311869f1490fc3240473a669db019003e507e0b1f6fb30cf89d95ec36f2fd",
+      "status": "NOT_PAPER_EVIDENCE",
+      "reason": "Rank-screening sweep with 48 configurations, seven datasets, and a single seed; it is not the manuscript's fixed main experiment."
+    }
+  ]
+}

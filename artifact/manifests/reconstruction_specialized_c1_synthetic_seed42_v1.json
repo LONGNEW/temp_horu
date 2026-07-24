@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "name": "reconstruction_specialized_c1_synthetic_seed42_v1",
+  "result_status": "CUDA_RECONSTRUCTION_SCREENING_ONLY",
+  "purpose": "Record round-end C1 checkpoint metrics on prepared LEAF Synthetic; never claim unavailable within-round causal stages or paper reproduction.",
+  "protocol": {
+    "cluster": "C1_inround_checkpoints",
+    "dataset": "synthetic",
+    "method": "horu_hd",
+    "rank_config": "baseline:32:24:64",
+    "heterogeneity_pack": "H0",
+    "seed": 42,
+    "rounds": 25,
+    "round_checkpoints": [10, 20, 25],
+    "local_epochs": 3,
+    "batch_size": 32,
+    "client_participation": 1.0,
+    "hd_dim": 2000,
+    "hd_lr": 0.035,
+    "device": "cuda",
+    "deterministic_algorithms": true,
+    "torch_num_threads": 1,
+    "within_round_stage_artifacts": "GATED_UNIMPLEMENTED"
+  },
+  "parameter_provenance": {
+    "seed_and_client_selection": "USER_SPECIFIED",
+    "cluster_and_rank_config": "REPO_EXISTING: run_commonbasis_specialized_cluster.py",
+    "training_budget": "PAPER_SPECIFIED plus REPO_EXISTING",
+    "paper_match": "UNKNOWN_OR_UNVERIFIED"
+  },
+  "limitations": [
+    "The specialized-cluster protocol is a repository experiment surface, not an evidenced manuscript protocol.",
+    "This single seed/one-dataset output is screening-only.",
+    "Canonical HoRU does not emit server-injection/shared-update/personal-update stage artifacts, so this report contains only round-end checkpoints."
+  ]
+}
